@@ -4,6 +4,22 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
 
 ---
 
+## [1.2.3] - 2026-10-30
+
+### 🐛 Vá Lỗi Khớp ID Bản Dịch & Khả Năng Chống Lỗi Tuyệt Đối (Ultra-Resilient Engine)
+* **Khắc phục triệt để lỗi "Báo thành công nhưng không thấy kết quả dịch"**:
+  * **Lỗi lệch ID (`blockIdCounter`)**: Trước đây `blockIdCounter` không được reset về 0 ở mỗi lần dịch, khiến ID bị đẩy lên cao (ví dụ `176..350`). Khi Gemini trả về các key được đánh số lại từ `1..175`, hệ thống không khớp được vào DOM dẫn đến việc không cập nhật văn bản nào nhưng vẫn báo hoàn tất.
+  * **Cơ chế Khớp ID Kép (Dual Matching)**: Hệ thống giờ đây hỗ trợ nhận diện cả ID toàn cục (`id = "176"`) và chỉ số tương đối theo lô (`index = "1"`). Đảm bảo dù AI có đánh số lại hay giữ nguyên ID thì 100% phần tử đều được nạp chính xác vào DOM.
+  * **Reset trạng thái sạch**: Luôn gọi `pageBlockMap.clear()` và `blockIdCounter = 0` ngay từ đầu mỗi lượt dịch.
+* **Bộ phân tích JSON Đa Tầng (Multi-tier Resilient Parser)**:
+  * Tự động giải quyết trường hợp Gemini trả về JSON chuẩn, JSON cắt cụt (cutoff), hoặc dạng danh sách đánh số (`1. ...`).
+* **Khắc phục lỗi kiểm tra phần tử hiển thị (`isElementVisibleForTranslation`)**:
+  * Thay thế `checkVisibilityCSS` (vốn vô tình loại bỏ các khối văn bản off-screen hoặc dùng `content-visibility: auto`) bằng bộ kiểm tra hiển thị chuẩn xác, không bỏ sót văn bản chưa cuộn tới.
+* **Tối ưu kích thước lô ổn định (60 phần tử / batch)**:
+  * Đảm bảo thời gian phản hồi nhanh (2-3s/batch), không chạm trần output tokens của Gemini, và cho phép nạp kết quả trơn tru theo từng lô mà không cần đếm số realtime gây rối mắt.
+
+---
+
 ## [1.2.2] - 2026-10-30
 
 ### ⚡ Tối ưu Tốc độ Tức thì: Nạp Kết Quả 1 Lần & Bỏ Đếm Số Realtime

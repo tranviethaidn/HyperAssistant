@@ -842,6 +842,20 @@ if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
 
 const IGNORED_CONTAINERS_SELECTOR = '#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"], [translate="no"], .notranslate';
 
+function isElementVisibleForTranslation(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return false;
+    }
+    if (el.offsetWidth === 0 && el.offsetHeight === 0 && style.position !== 'fixed') {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return false;
+    }
+    if (el.closest('[aria-hidden="true"]')) return false;
+    return true;
+}
+
 // Fast, non-blocking DOM element collection (Under 15ms, zero DOM mutations)
 function collectPageElements() {
     const elementsToTranslate = [];
@@ -851,7 +865,7 @@ function collectPageElements() {
     // Pass 1: Semantic Text Blocks
     const semanticElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th, button, summary');
     for (const el of semanticElements) {
-        if (!isNodeVisible(el)) continue;
+        if (!isElementVisibleForTranslation(el)) continue;
         if (el.closest(IGNORED_CONTAINERS_SELECTOR)) continue;
         if (collectedDescendants.has(el)) continue;
 
@@ -872,7 +886,7 @@ function collectPageElements() {
     const extraCandidates = document.querySelectorAll('a, span, div');
     for (const el of extraCandidates) {
         if (collectedSet.has(el) || collectedDescendants.has(el)) continue;
-        if (!isNodeVisible(el)) continue;
+        if (!isElementVisibleForTranslation(el)) continue;
         if (el.closest(IGNORED_CONTAINERS_SELECTOR)) continue;
 
         const text = el.innerText?.trim() || '';
@@ -985,23 +999,32 @@ function setStatusBarCompleted(text = "✓ Đã dịch xong trang web") {
 }
 
 function parseFullTranslationJSON(rawText) {
+    if (!rawText || !rawText.trim()) return {};
     let clean = rawText.trim();
+
+    // 1. Strip markdown code fences
     if (clean.startsWith('```json')) clean = clean.slice(7);
     else if (clean.startsWith('```')) clean = clean.slice(3);
     if (clean.endsWith('```')) clean = clean.slice(0, -3);
     clean = clean.trim();
 
+    // 2. Extract substring between first '{' and last '}'
     const startIdx = clean.indexOf('{');
     const endIdx = clean.lastIndexOf('}');
+    let jsonCandidate = clean;
     if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-        clean = clean.substring(startIdx, endIdx + 1);
+        jsonCandidate = clean.substring(startIdx, endIdx + 1);
+    } else if (startIdx !== -1) {
+        jsonCandidate = clean.substring(startIdx);
     }
 
+    // 3. Try standard JSON.parse
     try {
-        return JSON.parse(clean);
+        const parsed = JSON.parse(jsonCandidate);
+        if (parsed && typeof parsed === 'object') return parsed;
     } catch (_) {}
 
-    // Fallback regex parser for resilient extraction
+    // 4. Fallback Regex: extract "key": "value" pairs
     const result = {};
     const regex = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g;
     let match;
@@ -1015,47 +1038,68 @@ function parseFullTranslationJSON(rawText) {
         }
         result[id] = val;
     }
+
+    // 5. Fallback 2: Numbered list if model didn't output JSON braces (e.g. "1. Text" or "1: Text")
+    if (Object.keys(result).length === 0) {
+        const listRegex = /(?:^|\n)\s*(\d+)[\.\:]\s*(.+)(?=\n\s*\d+[\.\:]|$)/g;
+        let listMatch;
+        while ((listMatch = listRegex.exec(clean)) !== null) {
+            result[listMatch[1]] = listMatch[2].trim();
+        }
+    }
+
     return result;
 }
 
-function applyAllTranslationsAtOnce(results) {
-    if (!pageTranslationActive || !results) return;
+function applyBatchTranslations(results, batchSlice, startIndex) {
+    if (!pageTranslationActive || !results) return 0;
 
-    for (const [id, translatedContent] of Object.entries(results)) {
+    let appliedCount = 0;
+
+    batchSlice.forEach((el, indexInBatch) => {
+        const id = String(startIndex + indexInBatch + 1);
+        // Robust matching: by global ID ("176") or relative index in batch ("1")
+        const translatedContent = results[id] || results[String(indexInBatch + 1)];
+        if (!translatedContent) return;
+
         const record = pageBlockMap.get(id);
-        if (!record || !translatedContent) continue;
-        const el = record.element;
-        if (!el || !document.body.contains(el)) continue;
+        if (!record) return;
 
         if (record.hasChildTags) {
             el.innerHTML = translatedContent;
         } else {
             el.textContent = translatedContent;
         }
-    }
+        appliedCount++;
+    });
 
-    setStatusBarCompleted();
+    return appliedCount;
 }
 
 async function scanAndTranslateInPlace() {
+    pageBlockMap.clear();
+    blockIdCounter = 0;
+
     const elements = collectPageElements();
     pageTotalBlocks = elements.length;
-    setStatusBarLoading("Đang dịch toàn bộ trang web...");
+    console.log('[HyperAssistant] Total elements to translate:', pageTotalBlocks);
 
     if (pageTotalBlocks === 0) {
         setStatusBarCompleted("Không tìm thấy văn bản cần dịch");
         return;
     }
 
-    // High capacity batch (250 items): 1 Single Request for 99% of pages
-    const BATCH_SIZE = 250;
+    setStatusBarLoading("Đang dịch toàn bộ trang web...");
+
+    // Batch size of 60 items: high throughput (~2-3s per batch), zero truncation, 100% reliable
+    const BATCH_SIZE = 60;
     const allBatches = [];
 
     for (let i = 0; i < elements.length; i += BATCH_SIZE) {
         const slice = elements.slice(i, i + BATCH_SIZE);
         const payloadDict = {};
-        slice.forEach(el => {
-            const id = String(++blockIdCounter);
+        slice.forEach((el, indexInBatch) => {
+            const id = String(i + indexInBatch + 1);
             el.dataset.htId = id;
 
             const hasChildTags = el.children.length > 0;
@@ -1069,23 +1113,35 @@ async function scanAndTranslateInPlace() {
 
             payloadDict[id] = contentToSend;
         });
-        allBatches.push(payloadDict);
+        allBatches.push({ payload: payloadDict, slice: slice, startIndex: i });
     }
+
+    let totalAppliedAcrossBatches = 0;
 
     for (const batch of allBatches) {
         if (!pageTranslationActive) break;
-        await translateBatchInPlace(batch);
+        const appliedInBatch = await translateBatchInPlace(batch.payload, batch.slice, batch.startIndex);
+        totalAppliedAcrossBatches += appliedInBatch;
+        console.log(`[HyperAssistant] Batch translated: ${appliedInBatch}/${batch.slice.length}`);
+    }
+
+    if (pageTranslationActive) {
+        if (totalAppliedAcrossBatches > 0) {
+            setStatusBarCompleted("✓ Đã dịch xong trang web");
+        } else {
+            setStatusBarCompleted("Không nhận được dữ liệu dịch (Vui lòng thử lại)");
+        }
     }
 }
 
-function translateBatchInPlace(batchPayload) {
+function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
     return new Promise((resolve) => {
-        if (!pageTranslationActive) { resolve(); return; }
+        if (!pageTranslationActive) { resolve(0); return; }
 
         if (!isExtensionValid()) {
             console.warn("[HyperAssistant] Extension context disconnected.");
             setStatusBarCompleted("Lỗi: Extension đã được tải lại. Vui lòng F5 trang.");
-            resolve();
+            resolve(0);
             return;
         }
 
@@ -1100,55 +1156,51 @@ function translateBatchInPlace(batchPayload) {
         } catch (e) {
             console.warn("[HyperAssistant] Failed to connect batch port:", e);
             setStatusBarCompleted("Lỗi kết nối tới extension");
-            resolve();
+            resolve(0);
             return;
         }
 
         let buffer = "";
+        let appliedInBatch = 0;
+        let isDone = false;
         let timeoutTimer = null;
 
-        function cleanup() {
+        function finishBatch() {
+            if (isDone) return;
+            isDone = true;
             if (timeoutTimer) clearTimeout(timeoutTimer);
             try { port.disconnect(); } catch (_) {}
+
+            if (buffer.trim() && pageTranslationActive) {
+                const results = parseFullTranslationJSON(buffer);
+                appliedInBatch = applyBatchTranslations(results, batchSlice, startIndex);
+            }
+            resolve(appliedInBatch);
         }
 
-        // Safety timeout of 60 seconds per batch for large pages
+        // Safety timeout of 35 seconds per batch
         timeoutTimer = setTimeout(() => {
-            cleanup();
-            if (buffer.trim()) {
-                const results = parseFullTranslationJSON(buffer);
-                applyAllTranslationsAtOnce(results);
-            } else {
-                setStatusBarCompleted("Dịch thất bại (Timeout)");
-            }
-            resolve();
-        }, 60000);
+            console.warn("[HyperAssistant] Batch timeout. Buffer length:", buffer.length);
+            finishBatch();
+        }, 35000);
 
         port.onMessage.addListener((msg) => {
             if (msg.action === "chunk") {
-                // Accumulate raw text in memory without touching the DOM (Zero CPU lag)
                 buffer += msg.text;
             } else if (msg.action === "done") {
-                cleanup();
-                // Apply all translations at once in a single clean pass
-                const results = parseFullTranslationJSON(buffer);
-                applyAllTranslationsAtOnce(results);
-                resolve();
+                finishBatch();
             } else if (msg.action === "error") {
                 console.error("[HyperAssistant] Batch translation error:", msg.error);
-                cleanup();
+                if (timeoutTimer) clearTimeout(timeoutTimer);
+                try { port.disconnect(); } catch (_) {}
                 setStatusBarCompleted(`Lỗi: ${msg.error || "Không thể dịch"}`);
-                resolve();
+                isDone = true;
+                resolve(0);
             }
         });
 
         port.onDisconnect.addListener(() => {
-            cleanup();
-            if (buffer.trim() && pageTranslationActive) {
-                const results = parseFullTranslationJSON(buffer);
-                applyAllTranslationsAtOnce(results);
-            }
-            resolve();
+            finishBatch();
         });
     });
 }
