@@ -7,6 +7,7 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
 ## [1.1.0] - 2026-10-30
 
 ### 🐛 Vá lỗi quan trọng (Bug Fixes)
+* **Xử lý ngắt ngữ cảnh Extension (Context Invalidation)**: Bổ sung cơ chế `isExtensionValid()` và bọc `try/catch` an toàn cho các lệnh `chrome.runtime.connect`. Khắc phục triệt để lỗi `Uncaught TypeError: Cannot read properties of undefined (reading 'connect')` khi extension được tải lại (reload) hoặc chạy trong iframe giới hạn, đồng thời hiển thị thông báo hướng dẫn người dùng F5 tải lại trang.
 * **Nuốt phím `Esc` toàn cầu**: Sửa hàm `handleEscKey` trong `content.js` để chỉ can thiệp `preventDefault()` và `stopPropagation()` khi hộp thoại dịch đang mở. Trả lại sự kiện phím Esc nguyên vẹn cho mọi trang web (YouTube, Modal, Form...).
 * **Lỗi hỏng chuỗi do ký tự `$`**: Sửa hàm `buildPrompt` trong `background.js` bằng cách sử dụng replacer function `() => ...` thay vì chuỗi trần. Khắc phục triệt để lỗi mất dữ liệu khi dịch văn bản chứa đơn vị tiền tệ (`$100`), biến lập trình (`$var`), hoặc cấu trúc JSON.
 * **Hỗ trợ toàn bộ ngôn ngữ thế giới**: Cập nhật bộ lọc trong `scanAndTranslatePage` từ regex Latin hẹp sang Unicode Property Escapes `!/[\p{L}\p{N}]/u`. Cho phép dịch chính xác các trang web tiếng Nhật, Trung Quốc, Hàn Quốc, Nga, Ả Rập, Thái Lan, v.v.

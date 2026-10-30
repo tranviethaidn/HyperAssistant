@@ -14,6 +14,17 @@ let translatedNodesCount = 0;
 let totalNodesToTranslate = 0;
 let uniqueIdCounter = 0;
 
+// Helper to check if extension context is alive and valid
+function isExtensionValid() {
+    try {
+        return typeof chrome !== 'undefined' && 
+               Boolean(chrome?.runtime?.id) && 
+               typeof chrome?.runtime?.connect === 'function';
+    } catch (_) {
+        return false;
+    }
+}
+
 // === Hàm Khởi tạo ===
 function initialize() {
     addEscKeyListener();
@@ -353,40 +364,52 @@ function handleSelectionActionClick(event, action) {
 
     showHoverBox(initialBoxX, initialBoxY, '', true);
 
-    // Use Port for streaming
-    const port = chrome.runtime.connect({ name: "content_highlight_stream" });
-    port.postMessage({
-        action,
-        text: selectedText
-    });
+    if (!isExtensionValid()) {
+        showHoverBox(initialBoxX, initialBoxY, "Tiện ích đã được tải lại hoặc cập nhật. Vui lòng nhấn F5 để tải lại trang.\n(Extension reloaded. Please refresh the page.)", false);
+        return;
+    }
+
+    let port;
+    try {
+        port = chrome.runtime.connect({ name: "content_highlight_stream" });
+        port.postMessage({
+            action,
+            text: selectedText
+        });
+    } catch (err) {
+        showHoverBox(initialBoxX, initialBoxY, "Tiện ích đã được tải lại hoặc cập nhật. Vui lòng nhấn F5 để tải lại trang.\n(Extension reloaded. Please refresh the page.)", false);
+        return;
+    }
 
     let fullTranslation = "";
 
     port.onMessage.addListener((msg) => {
-        if (!hoverBox) { port.disconnect(); return; } // Box closed by user
+        if (!hoverBox) {
+            try { port.disconnect(); } catch (_) {}
+            return;
+        }
 
         if (msg.action === "chunk") {
             if (fullTranslation === "") {
-                // First chunk, remove loading spinner
-                // showHoverBox handles clearing if we pass content, but we want to keep appending
-                // So we manually clear the loading spinner if it exists
                 const loader = hoverBox.querySelector('.loading');
                 if (loader) loader.remove();
             }
             fullTranslation += msg.text;
             showHoverBox(initialBoxX, initialBoxY, fullTranslation, false);
         } else if (msg.action === "done") {
-            port.disconnect();
+            try { port.disconnect(); } catch (_) {}
         } else if (msg.action === "error") {
             showHoverBox(initialBoxX, initialBoxY, `Error: ${msg.error}`, false);
-            port.disconnect();
+            try { port.disconnect(); } catch (_) {}
         }
     });
 
     port.onDisconnect.addListener(() => {
-        if (chrome.runtime.lastError) {
-            if (hoverBox) showHoverBox(initialBoxX, initialBoxY, `Connection Error: ${chrome.runtime.lastError.message}`, false);
-        }
+        try {
+            if (chrome?.runtime?.lastError) {
+                if (hoverBox) showHoverBox(initialBoxX, initialBoxY, `Connection Error: ${chrome.runtime.lastError.message}`, false);
+            }
+        } catch (_) {}
     });
 }
 
@@ -419,17 +442,30 @@ function handleImageTranslate(imageUrl) {
 
     showImageTranslateBox(imageX, imageY, '', true);
 
-    // Use Port for streaming
-    const port = chrome.runtime.connect({ name: "content_image_stream" });
-    port.postMessage({
-        action: "translateImage",
-        imageUrl: imageUrl
-    });
+    if (!isExtensionValid()) {
+        showImageTranslateBox(imageX, imageY, "Tiện ích đã được tải lại hoặc cập nhật. Vui lòng nhấn F5 để tải lại trang.\n(Extension reloaded. Please refresh the page.)", false);
+        return;
+    }
+
+    let port;
+    try {
+        port = chrome.runtime.connect({ name: "content_image_stream" });
+        port.postMessage({
+            action: "translateImage",
+            imageUrl: imageUrl
+        });
+    } catch (err) {
+        showImageTranslateBox(imageX, imageY, "Tiện ích đã được tải lại hoặc cập nhật. Vui lòng nhấn F5 để tải lại trang.\n(Extension reloaded. Please refresh the page.)", false);
+        return;
+    }
 
     let fullTranslation = "";
 
     port.onMessage.addListener((msg) => {
-        if (!imageTranslateBox) { port.disconnect(); return; }
+        if (!imageTranslateBox) {
+            try { port.disconnect(); } catch (_) {}
+            return;
+        }
 
         if (msg.action === "chunk") {
             if (fullTranslation === "") {
@@ -439,17 +475,19 @@ function handleImageTranslate(imageUrl) {
             fullTranslation += msg.text;
             showImageTranslateBox(imageX, imageY, fullTranslation, false);
         } else if (msg.action === "done") {
-            port.disconnect();
+            try { port.disconnect(); } catch (_) {}
         } else if (msg.action === "error") {
             showImageTranslateBox(imageX, imageY, `Error: ${msg.error}`, false);
-            port.disconnect();
+            try { port.disconnect(); } catch (_) {}
         }
     });
 
     port.onDisconnect.addListener(() => {
-        if (chrome.runtime.lastError) {
-            if (imageTranslateBox) showImageTranslateBox(imageX, imageY, `Connection Error: ${chrome.runtime.lastError.message}`, false);
-        }
+        try {
+            if (chrome?.runtime?.lastError) {
+                if (imageTranslateBox) showImageTranslateBox(imageX, imageY, `Connection Error: ${chrome.runtime.lastError.message}`, false);
+            }
+        } catch (_) {}
     });
 }
 
@@ -719,6 +757,10 @@ document.addEventListener('mouseup', (event) => {
 
     removeSelectionTranslateElements();
 
+    if (!isExtensionValid()) {
+        return;
+    }
+
     if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
 
     // Fast check: return early if no text selected to prevent unnecessary tree walking and layout queries
@@ -778,7 +820,8 @@ document.addEventListener('mouseup', (event) => {
 
 
 // === Listen for messages from background script ===
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "initiateImageTranslate") {
         handleImageTranslate(message.imageUrl);
         return true;
@@ -788,7 +831,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
     return false;
-});
+    });
+}
 
 
 // === Logic Dịch Toàn Trang ===
@@ -953,11 +997,24 @@ function translateBatch(batchPayload) {
     return new Promise((resolve) => {
         if (!pageTranslationActive) { resolve(); return; }
 
-        const port = chrome.runtime.connect({ name: "content_page_batch" });
-        port.postMessage({
-            action: "translatePageBatch",
-            batchData: batchPayload
-        });
+        if (!isExtensionValid()) {
+            console.warn("[HyperAssistant] Extension disconnected, cannot translate batch.");
+            resolve();
+            return;
+        }
+
+        let port;
+        try {
+            port = chrome.runtime.connect({ name: "content_page_batch" });
+            port.postMessage({
+                action: "translatePageBatch",
+                batchData: batchPayload
+            });
+        } catch (err) {
+            console.warn("[HyperAssistant] Connection failed:", err);
+            resolve();
+            return;
+        }
 
         let fullResponse = "";
         let buffer = ""; // Current chunk buffer

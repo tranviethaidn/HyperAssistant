@@ -67,6 +67,16 @@ function setupEventListeners() {
     }
 }
 
+function isExtensionValid() {
+    try {
+        return typeof chrome !== 'undefined' && 
+               Boolean(chrome?.runtime?.id) && 
+               typeof chrome?.runtime?.connect === 'function';
+    } catch (_) {
+        return false;
+    }
+}
+
 // --- Core Functions --- 
 
 function handleTranslateRequest() {
@@ -90,15 +100,29 @@ function handleTranslateRequest() {
     updateStatus(translations.statusTranslating || "Translating...", false);
     clearOutput(translations.outputPlaceholder); // Clear previous result
 
-    // Use Long-lived connection for streaming
-    const port = chrome.runtime.connect({ name: "sidebar_stream" });
+    if (!isExtensionValid()) {
+        const errorMsg = "Extension context disconnected. Please reopen the sidebar.";
+        updateStatus(errorMsg, true);
+        displayOutput(errorMsg);
+        resetSendButton(translations.translateButton);
+        return;
+    }
 
-    // Send the translation request
-    port.postMessage({
-        action: "translateInputText",
-        text: textToTranslate,
-        targetLanguage: targetLanguage
-    });
+    let port;
+    try {
+        port = chrome.runtime.connect({ name: "sidebar_stream" });
+        port.postMessage({
+            action: "translateInputText",
+            text: textToTranslate,
+            targetLanguage: targetLanguage
+        });
+    } catch (e) {
+        const errorMsg = `Connection failed: ${e.message}`;
+        updateStatus(errorMsg, true);
+        displayOutput(errorMsg);
+        resetSendButton(translations.translateButton);
+        return;
+    }
 
     let fullTranslation = "";
 
@@ -137,7 +161,9 @@ function handleTranslateRequest() {
 }
 
 function openOptionsPage() {
-    chrome.runtime.openOptionsPage();
+    if (chrome?.runtime?.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+    }
 }
 
 function updateStatus(message, isError = false, temporary = false) {
