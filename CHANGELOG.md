@@ -4,6 +4,26 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
 
 ---
 
+## [1.2.4] - 2026-10-30
+
+### 🩺 Bổ sung Hệ thống Diagnostic Logging & Gỡ bỏ Bộ lọc An toàn Chặn Bài báo
+* **Phát hiện & Xử lý Bộ lọc An toàn Google Gemini (Safety Filter Blocking)**:
+  * Cấu hình lại `safetySettings` sang mức nới lỏng `BLOCK_NONE` cho toàn bộ các danh mục (Harassment, Hate Speech, Sexually Explicit, Dangerous Content, Civic Integrity) trong tác vụ dịch thuật. Ngăn chặn triệt để tình trạng các bài báo pháp luật, chính trị, điều tra (như CNN, BBC) bị Google Gemini âm thầm chặn và trả về kết quả rỗng.
+  * Bổ sung cơ chế phát hiện lỗi `chunkData.error` và `promptFeedback.blockReason`. Nếu có bất kỳ lỗi hoặc sự cố chặn nào từ Google, extension sẽ lập tức báo lỗi cụ thể ra giao diện và console thay vì âm thầm gửi trạng thái `done`.
+* **Hệ thống Diagnostic Log chi tiết toàn diện trong Console (`F12`)**:
+  * Ghi lại chi tiết từng bước thực thi với tiền tố `[HyperAssistant]`:
+    * Số lượng phần tử thu thập được trên trang (`Total elements collected`).
+    * Thông tin điều phối từng Batch gửi đi (`Dispatching Batch X/Y`).
+    * Chiều dài và mẫu dữ liệu thô nhận về từ AI (`Raw response preview`).
+    * Số lượng khóa phân tích thành công (`Parsed keys`).
+    * Số lượng phần tử thực tế được cập nhật vào DOM (`Applied count`).
+* **Sửa lỗi kẹt cờ `pageTranslationActive`**:
+  * Tự động giải phóng cờ `pageTranslationActive = false` ngay khi tiến trình dịch kết thúc (dù thành công hay thất bại), cho phép người dùng click dịch lại hoặc đổi ngôn ngữ mà không bị chặn âm thầm.
+* **Cảnh báo trung thực trên thanh trạng thái**:
+  * Nếu không có phần tử nào được cập nhật, thanh trạng thái sẽ hiển thị cảnh báo: `⚠️ Không dịch được phần tử nào (Xem F12 Console để biết chi tiết)` thay vì báo hoàn tất sai lệch.
+
+---
+
 ## [1.2.3] - 2026-10-30
 
 ### 🐛 Vá Lỗi Khớp ID Bản Dịch & Khả Năng Chống Lỗi Tuyệt Đối (Ultra-Resilient Engine)

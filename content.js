@@ -840,7 +840,7 @@ if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
 
 // === Logic Dịch Toàn Trang (In-Place Translation Engine) ===
 
-const IGNORED_CONTAINERS_SELECTOR = '#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"], [translate="no"], .notranslate';
+const IGNORED_CONTAINERS_SELECTOR = '#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]';
 
 function isElementVisibleForTranslation(el) {
     if (!el || el.nodeType !== 1) return false;
@@ -848,15 +848,15 @@ function isElementVisibleForTranslation(el) {
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
         return false;
     }
+    // Check if truly collapsed 0x0 without children
     if (el.offsetWidth === 0 && el.offsetHeight === 0 && style.position !== 'fixed') {
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) return false;
     }
-    if (el.closest('[aria-hidden="true"]')) return false;
     return true;
 }
 
-// Fast, non-blocking DOM element collection (Under 15ms, zero DOM mutations)
+// Fast, non-blocking DOM element collection
 function collectPageElements() {
     const elementsToTranslate = [];
     const collectedSet = new Set();
@@ -914,7 +914,7 @@ function collectPageElements() {
 }
 
 async function handleFullPageTranslate(customLang = null) {
-    if (pageTranslationActive) return;
+    console.log('[HyperAssistant] >>> Initiating Full Page Translation...');
     pageTranslationActive = true;
 
     if (customLang) {
@@ -928,6 +928,7 @@ async function handleFullPageTranslate(customLang = null) {
         }
     }
 
+    console.log('[HyperAssistant] Target Language:', pageTargetLang);
     createStatusBar();
     scanAndTranslateInPlace();
 }
@@ -1021,7 +1022,10 @@ function parseFullTranslationJSON(rawText) {
     // 3. Try standard JSON.parse
     try {
         const parsed = JSON.parse(jsonCandidate);
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object') {
+            console.log('[HyperAssistant] Successfully parsed via standard JSON.parse:', Object.keys(parsed).length, 'keys');
+            return parsed;
+        }
     } catch (_) {}
 
     // 4. Fallback Regex: extract "key": "value" pairs
@@ -1048,17 +1052,18 @@ function parseFullTranslationJSON(rawText) {
         }
     }
 
+    console.log('[HyperAssistant] Parsed via fallback extraction:', Object.keys(result).length, 'keys');
     return result;
 }
 
 function applyBatchTranslations(results, batchSlice, startIndex) {
-    if (!pageTranslationActive || !results) return 0;
+    if (!results) return 0;
 
     let appliedCount = 0;
 
     batchSlice.forEach((el, indexInBatch) => {
         const id = String(startIndex + indexInBatch + 1);
-        // Robust matching: by global ID ("176") or relative index in batch ("1")
+        // Robust matching: by global ID ("1") or relative index in batch ("1")
         const translatedContent = results[id] || results[String(indexInBatch + 1)];
         if (!translatedContent) return;
 
@@ -1073,6 +1078,7 @@ function applyBatchTranslations(results, batchSlice, startIndex) {
         appliedCount++;
     });
 
+    console.log(`[HyperAssistant] Applied ${appliedCount}/${batchSlice.length} elements in batch.`);
     return appliedCount;
 }
 
@@ -1082,17 +1088,19 @@ async function scanAndTranslateInPlace() {
 
     const elements = collectPageElements();
     pageTotalBlocks = elements.length;
-    console.log('[HyperAssistant] Total elements to translate:', pageTotalBlocks);
+    console.log('[HyperAssistant] Total elements collected on page:', pageTotalBlocks);
 
     if (pageTotalBlocks === 0) {
-        setStatusBarCompleted("Không tìm thấy văn bản cần dịch");
+        console.warn('[HyperAssistant] No readable elements found on page.');
+        setStatusBarCompleted("Không tìm thấy văn bản cần dịch trên trang");
+        pageTranslationActive = false;
         return;
     }
 
     setStatusBarLoading("Đang dịch toàn bộ trang web...");
 
-    // Batch size of 60 items: high throughput (~2-3s per batch), zero truncation, 100% reliable
-    const BATCH_SIZE = 60;
+    // Batch size of 50 items: rapid generation (~2-3s per batch), zero truncation
+    const BATCH_SIZE = 50;
     const allBatches = [];
 
     for (let i = 0; i < elements.length; i += BATCH_SIZE) {
@@ -1116,30 +1124,34 @@ async function scanAndTranslateInPlace() {
         allBatches.push({ payload: payloadDict, slice: slice, startIndex: i });
     }
 
+    console.log(`[HyperAssistant] Prepared ${allBatches.length} batch(es) for ${pageTotalBlocks} elements.`);
+
     let totalAppliedAcrossBatches = 0;
 
-    for (const batch of allBatches) {
+    for (let bIndex = 0; bIndex < allBatches.length; bIndex++) {
         if (!pageTranslationActive) break;
+        const batch = allBatches[bIndex];
+        console.log(`[HyperAssistant] Dispatching Batch ${bIndex + 1}/${allBatches.length} (${batch.slice.length} items)...Raw Keys:`, Object.keys(batch.payload));
         const appliedInBatch = await translateBatchInPlace(batch.payload, batch.slice, batch.startIndex);
         totalAppliedAcrossBatches += appliedInBatch;
-        console.log(`[HyperAssistant] Batch translated: ${appliedInBatch}/${batch.slice.length}`);
     }
 
-    if (pageTranslationActive) {
-        if (totalAppliedAcrossBatches > 0) {
-            setStatusBarCompleted("✓ Đã dịch xong trang web");
-        } else {
-            setStatusBarCompleted("Không nhận được dữ liệu dịch (Vui lòng thử lại)");
-        }
+    console.log(`[HyperAssistant] Translation completed! Total applied: ${totalAppliedAcrossBatches}/${pageTotalBlocks}`);
+
+    if (totalAppliedAcrossBatches > 0) {
+        setStatusBarCompleted(`✓ Đã dịch xong trang web (${totalAppliedAcrossBatches} mục)`);
+    } else {
+        setStatusBarCompleted("⚠️ Không dịch được phần tử nào (Xem F12 Console để biết chi tiết)");
     }
+
+    // Allow re-translating if user triggers again
+    pageTranslationActive = false;
 }
 
 function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
     return new Promise((resolve) => {
-        if (!pageTranslationActive) { resolve(0); return; }
-
         if (!isExtensionValid()) {
-            console.warn("[HyperAssistant] Extension context disconnected.");
+            console.error("[HyperAssistant] Extension context disconnected.");
             setStatusBarCompleted("Lỗi: Extension đã được tải lại. Vui lòng F5 trang.");
             resolve(0);
             return;
@@ -1154,7 +1166,7 @@ function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
                 batchData: batchPayload
             });
         } catch (e) {
-            console.warn("[HyperAssistant] Failed to connect batch port:", e);
+            console.error("[HyperAssistant] Failed to connect batch port:", e);
             setStatusBarCompleted("Lỗi kết nối tới extension");
             resolve(0);
             return;
@@ -1171,9 +1183,18 @@ function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
             if (timeoutTimer) clearTimeout(timeoutTimer);
             try { port.disconnect(); } catch (_) {}
 
-            if (buffer.trim() && pageTranslationActive) {
+            console.log(`[HyperAssistant] Batch finished. Raw buffer length: ${buffer.length}`);
+            if (buffer.length < 500) {
+                console.log(`[HyperAssistant] Raw response buffer:`, buffer);
+            } else {
+                console.log(`[HyperAssistant] Raw response preview:`, buffer.slice(0, 300) + '...');
+            }
+
+            if (buffer.trim()) {
                 const results = parseFullTranslationJSON(buffer);
                 appliedInBatch = applyBatchTranslations(results, batchSlice, startIndex);
+            } else {
+                console.warn('[HyperAssistant] Buffer is empty upon batch finish!');
             }
             resolve(appliedInBatch);
         }
@@ -1188,9 +1209,10 @@ function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
             if (msg.action === "chunk") {
                 buffer += msg.text;
             } else if (msg.action === "done") {
+                console.log('[HyperAssistant] Received "done" action from background.');
                 finishBatch();
             } else if (msg.action === "error") {
-                console.error("[HyperAssistant] Batch translation error:", msg.error);
+                console.error("[HyperAssistant] Batch translation error from API:", msg.error);
                 if (timeoutTimer) clearTimeout(timeoutTimer);
                 try { port.disconnect(); } catch (_) {}
                 setStatusBarCompleted(`Lỗi: ${msg.error || "Không thể dịch"}`);
@@ -1200,12 +1222,14 @@ function translateBatchInPlace(batchPayload, batchSlice, startIndex) {
         });
 
         port.onDisconnect.addListener(() => {
+            console.log('[HyperAssistant] Port disconnected.');
             finishBatch();
         });
     });
 }
 
 function restorePage() {
+    console.log('[HyperAssistant] Restoring original page content...');
     pageTranslationActive = false;
 
     pageBlockMap.forEach((record) => {

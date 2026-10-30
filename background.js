@@ -603,9 +603,17 @@ async function streamGeminiAPI(textToTranslate, promptTemplate, targetLanguage =
     if (settings.topP != null) generationConfig.topP = settings.topP;
     if (settings.maxOutputTokens != null) generationConfig.maxOutputTokens = settings.maxOutputTokens;
 
+    const defaultRelaxedSafety = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+        { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+    ];
+
     const requestBody = {
         contents: [{ parts: [{ text: prompt }] }],
-        safetySettings: settings.safetySettings || [],
+        safetySettings: (settings.safetySettings && settings.safetySettings.length > 0) ? settings.safetySettings : defaultRelaxedSafety,
         generationConfig: generationConfig
     };
 
@@ -650,6 +658,27 @@ async function streamGeminiAPI(textToTranslate, promptTemplate, targetLanguage =
             buffer = remainingBuffer;
 
             for (const chunkData of objects) {
+                if (chunkData.error) {
+                    const errMsg = chunkData.error.message || 'Gemini API Error';
+                    console.error(`${LOG_PREFIX} Stream chunk error:`, errMsg);
+                    safePostMessage(port, { action: "error", error: errMsg });
+                    return;
+                }
+                const blockReason = chunkData.promptFeedback?.blockReason;
+                if (blockReason) {
+                    const errMsg = `Nội dung bị chặn bởi bộ lọc Google Gemini (${blockReason}).`;
+                    console.warn(`${LOG_PREFIX} Blocked:`, errMsg);
+                    safePostMessage(port, { action: "error", error: errMsg });
+                    return;
+                }
+                const finishReason = chunkData.candidates?.[0]?.finishReason;
+                if (finishReason && finishReason !== "STOP") {
+                    console.warn(`${LOG_PREFIX} Finish reason:`, finishReason);
+                    if (finishReason === "SAFETY") {
+                        safePostMessage(port, { action: "error", error: "Bản dịch bị chặn bởi bộ lọc an toàn của Google (Safety Filter)." });
+                        return;
+                    }
+                }
                 try {
                     const text = chunkData.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (text) {
@@ -657,10 +686,18 @@ async function streamGeminiAPI(textToTranslate, promptTemplate, targetLanguage =
                         safePostMessage(port, { action: "chunk", text: text });
                     }
                 } catch (e) {
-                    // ignore
+                    console.error(`${LOG_PREFIX} Chunk parse error:`, e);
                 }
             }
         }
+
+        if (!accumulatedText.trim()) {
+            console.warn(`${LOG_PREFIX} Gemini stream finished with EMPTY output.`);
+            safePostMessage(port, { action: "error", error: "Mô hình AI không phản hồi nội dung dịch (Phản hồi rỗng)." });
+            return;
+        }
+
+        console.log(`${LOG_PREFIX} Stream completed successfully. Chars:`, accumulatedText.length);
 
         if (isInteractive && accumulatedText) {
             setCachedTranslation(cacheKey, accumulatedText);
