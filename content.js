@@ -6,13 +6,15 @@ let hoverBox = null;                // Box kết quả G
 let currentSelection = null;        // Selection hiện tại
 let imageTranslateBox = null;       // Box kết quả dịch ảnh
 
-// === Biến toàn cục cho Dịch Toàn Trang ===
+// === Biến toàn cục cho Dịch Toàn Trang (Next-Gen Semantic Block Engine) ===
 let pageTranslationActive = false;
-let originalTextMap = new Map(); // id -> { node, originalText }
+let pageBlockMap = new Map(); // id -> { element }
 let statusBar = null;
-let translatedNodesCount = 0;
-let totalNodesToTranslate = 0;
-let uniqueIdCounter = 0;
+let pageTranslatedCount = 0;
+let pageTotalBlocks = 0;
+let blockIdCounter = 0;
+let pageTargetLang = 'vietnamese';
+let pageViewMode = 'bilingual'; // 'bilingual' | 'translation' | 'original'
 
 // Helper to check if extension context is alive and valid
 function isExtensionValid() {
@@ -835,14 +837,46 @@ if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
 }
 
 
-// === Logic Dịch Toàn Trang ===
+// === Logic Dịch Toàn Trang (Next-Gen Semantic Block Engine) ===
 
-function handleFullPageTranslate() {
-    if (pageTranslationActive) return; // Prevent double run
+const SEMANTIC_BLOCK_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th';
+
+function collectSemanticBlocks() {
+    const candidates = document.querySelectorAll(SEMANTIC_BLOCK_SELECTORS);
+    const blocks = [];
+    for (const el of candidates) {
+        if (!isNodeVisible(el)) continue;
+        if (el.closest('#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]')) continue;
+
+        // Leaf block filter: if a block contains another semantic block (e.g., <li> containing <p>), only collect the leaf block
+        const hasChildBlock = el.querySelector(SEMANTIC_BLOCK_SELECTORS);
+        if (hasChildBlock) continue;
+
+        const text = el.innerText?.trim() || '';
+        if (text.length >= 2 && /[\p{L}\p{N}]/u.test(text)) {
+            blocks.push(el);
+        }
+    }
+    return blocks;
+}
+
+async function handleFullPageTranslate(customLang = null) {
+    if (pageTranslationActive) return;
     pageTranslationActive = true;
 
+    if (customLang) {
+        pageTargetLang = customLang;
+    } else {
+        try {
+            const res = await new Promise(r => chrome.storage.sync.get(['settings'], r));
+            pageTargetLang = res?.settings?.defaultTargetLanguage || 'vietnamese';
+        } catch (_) {
+            pageTargetLang = 'vietnamese';
+        }
+    }
+
     createStatusBar();
-    scanAndTranslatePage();
+    scanAndTranslateBlocks();
 }
 
 function createStatusBar() {
@@ -850,16 +884,54 @@ function createStatusBar() {
     statusBar = document.createElement('div');
     statusBar.id = 'hypertranslator-page-status-bar';
     statusBar.innerHTML = `
-        <div class="status-text">
+        <div class="status-left">
             <div class="ht-spinner"></div>
-            <span id="ht-status-message">Translating page... (0%)</span>
+            <span id="ht-status-message">Đang dịch trang... (0%)</span>
         </div>
-        <div class="status-actions">
-            <button id="hypertranslator-restore-btn">Restore Original</button>
-            <button id="hypertranslator-close-bar-btn">✕</button>
+        <div class="status-center">
+            <div class="ht-mode-group">
+                <button type="button" class="ht-mode-btn active" data-mode="bilingual" title="Hiện cả câu gốc và câu dịch">📖 Song ngữ</button>
+                <button type="button" class="ht-mode-btn" data-mode="translation" title="Chỉ hiện bản dịch">📄 Bản dịch</button>
+                <button type="button" class="ht-mode-btn" data-mode="original" title="Hiện văn bản gốc">📑 Bản gốc</button>
+            </div>
+            <select id="ht-page-target-lang" title="Đổi ngôn ngữ dịch">
+                <option value="vietnamese">Tiếng Việt</option>
+                <option value="english">English</option>
+                <option value="chinese (simplified)">中文 (简体)</option>
+                <option value="chinese (traditional)">中文 (繁體)</option>
+                <option value="japanese">日本語</option>
+                <option value="korean">한국어</option>
+                <option value="french">Français</option>
+                <option value="german">Deutsch</option>
+                <option value="spanish">Español</option>
+                <option value="russian">Русский</option>
+            </select>
+        </div>
+        <div class="status-right">
+            <button type="button" id="hypertranslator-restore-btn">Khôi phục</button>
+            <button type="button" id="hypertranslator-close-bar-btn" title="Đóng thanh tiến trình">✕</button>
         </div>
     `;
     document.body.appendChild(statusBar);
+
+    // Event listeners for view modes
+    statusBar.querySelectorAll('.ht-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setPageViewMode(btn.dataset.mode);
+        });
+    });
+
+    const langSelect = statusBar.querySelector('#ht-page-target-lang');
+    if (langSelect) {
+        langSelect.value = pageTargetLang;
+        langSelect.addEventListener('change', (e) => {
+            const newLang = e.target.value;
+            restorePage();
+            setTimeout(() => {
+                handleFullPageTranslate(newLang);
+            }, 100);
+        });
+    }
 
     document.getElementById('hypertranslator-restore-btn').addEventListener('click', restorePage);
     document.getElementById('hypertranslator-close-bar-btn').addEventListener('click', () => {
@@ -868,137 +940,73 @@ function createStatusBar() {
             statusBar = null;
         }
     });
+
+    setPageViewMode('bilingual');
+}
+
+function setPageViewMode(mode) {
+    pageViewMode = mode;
+    document.body.classList.remove('ht-mode-bilingual', 'ht-mode-translation', 'ht-mode-original');
+    document.body.classList.add(`ht-mode-${mode}`);
+    if (statusBar) {
+        statusBar.querySelectorAll('.ht-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+    }
 }
 
 function updateStatusBar(progress, total) {
     const msg = document.getElementById('ht-status-message');
     if (msg) {
-        const percent = Math.round((progress / total) * 100);
-        msg.textContent = `Translating page... (${percent}%)`;
-        if (progress >= total) {
-            msg.textContent = "Translation Complete";
-            const spinner = statusBar.querySelector('.ht-spinner');
+        const percent = total > 0 ? Math.round((progress / total) * 100) : 0;
+        msg.textContent = `Đang dịch trang... ${progress}/${total} (${percent}%)`;
+        if (progress >= total && total > 0) {
+            msg.textContent = `Dịch hoàn tất (${total} đoạn)`;
+            const spinner = statusBar?.querySelector('.ht-spinner');
             if (spinner) spinner.style.display = 'none';
         }
     }
 }
 
-function restorePage() {
-    originalTextMap.forEach((value, id) => {
-        if (value.node) {
-            value.node.textContent = value.originalText;
-        }
-    });
-    originalTextMap.clear();
-    pageTranslationActive = false;
-    if (statusBar) {
-        const spinner = statusBar.querySelector('.ht-spinner');
-        if (spinner) spinner.style.display = 'none';
-        const msg = document.getElementById('ht-status-message');
-        if (msg) msg.textContent = "Restored Original";
-        setTimeout(() => {
-            if (statusBar) statusBar.remove();
-            statusBar = null;
-        }, 1000);
-    }
-}
+async function scanAndTranslateBlocks() {
+    const validBlocks = collectSemanticBlocks();
+    pageTotalBlocks = validBlocks.length;
+    pageTranslatedCount = 0;
+    updateStatusBar(0, pageTotalBlocks);
 
-async function scanAndTranslatePage() {
-    const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: function (node) {
-                if (!isNodeVisible(node)) return NodeFilter.FILTER_REJECT;
-                const parent = node.parentElement;
-                if (!parent) return NodeFilter.FILTER_REJECT;
-
-                // Ignore specific tags
-                const tag = parent.tagName.toLowerCase();
-                if (['script', 'style', 'noscript', 'code', 'pre', 'textarea', 'input', 'select', 'option'].includes(tag)) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                // Ignore empty or symbol-only text (supports all languages: Latin, Vietnamese, CJK, Cyrillic, Arabic, etc.)
-                const text = node.textContent.trim();
-                if (text.length < 2 || !/[\p{L}\p{N}]/u.test(text)) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-
-                return NodeFilter.FILTER_ACCEPT;
-            }
-        }
-    );
-
-    const validNodes = [];
-    let currentNode;
-    while (currentNode = walker.nextNode()) {
-        validNodes.push(currentNode);
+    if (pageTotalBlocks === 0) {
+        updateStatusBar(0, 0);
+        return;
     }
 
-    totalNodesToTranslate = validNodes.length;
-    translatedNodesCount = 0;
-    updateStatusBar(0, totalNodesToTranslate);
-
-    // Batching & Parallel Processing
-    const BATCH_SIZE = 40; // Reduced slightly to avoid huge prompt overloads per request
-    const MAX_CONCURRENT_REQUESTS = 3; // Number of parallel requests
-
+    // Large Batching: 75 blocks per batch (reduces requests to 1-2 per page!)
+    const BATCH_SIZE = 75;
     const allBatches = [];
-    for (let i = 0; i < validNodes.length; i += BATCH_SIZE) {
-        const batchNodes = validNodes.slice(i, i + BATCH_SIZE);
-        const batchPayload = [];
-        batchNodes.forEach(node => {
-            const id = `ht_node_${++uniqueIdCounter}`;
-            // Store original if not exists
-            if (!originalTextMap.has(id)) {
-                originalTextMap.set(id, { node: node, originalText: node.textContent });
-            }
-            batchPayload.push({ id: id, text: node.textContent.trim() });
+
+    for (let i = 0; i < validBlocks.length; i += BATCH_SIZE) {
+        const slice = validBlocks.slice(i, i + BATCH_SIZE);
+        const payloadDict = {};
+        slice.forEach(el => {
+            const id = String(++blockIdCounter);
+            el.dataset.htId = id;
+            pageBlockMap.set(id, { element: el });
+            payloadDict[id] = el.innerText.trim();
         });
-        allBatches.push(batchPayload);
+        allBatches.push(payloadDict);
     }
 
-    // Process batches with concurrency limit
-    let activeRequests = 0;
-    let batchIndex = 0;
-
-    return new Promise((resolve) => {
-        function next() {
-            if (!pageTranslationActive) {
-                if (activeRequests === 0) resolve();
-                return;
-            }
-
-            // If we have processed all batches and no active requests are left
-            if (batchIndex >= allBatches.length && activeRequests === 0) {
-                resolve();
-                return;
-            }
-
-            // Start new requests if we are below limit and have items left
-            while (activeRequests < MAX_CONCURRENT_REQUESTS && batchIndex < allBatches.length) {
-                const currentBatch = allBatches[batchIndex++];
-                activeRequests++;
-
-                translateBatch(currentBatch).finally(() => {
-                    activeRequests--;
-                    next(); // Recursively call next to pick up work or finish
-                });
-            }
-        }
-
-        next(); // Kick off
-    });
+    for (const batch of allBatches) {
+        if (!pageTranslationActive) break;
+        await translateSemanticBatch(batch);
+    }
 }
 
-
-function translateBatch(batchPayload) {
+function translateSemanticBatch(batchPayload) {
     return new Promise((resolve) => {
         if (!pageTranslationActive) { resolve(); return; }
 
         if (!isExtensionValid()) {
-            console.warn("[HyperAssistant] Extension disconnected, cannot translate batch.");
+            console.warn("[HyperAssistant] Extension context disconnected.");
             resolve();
             return;
         }
@@ -1008,95 +1016,48 @@ function translateBatch(batchPayload) {
             port = chrome.runtime.connect({ name: "content_page_batch" });
             port.postMessage({
                 action: "translatePageBatch",
+                targetLanguage: pageTargetLang,
                 batchData: batchPayload
             });
-        } catch (err) {
-            console.warn("[HyperAssistant] Connection failed:", err);
+        } catch (e) {
+            console.warn("[HyperAssistant] Failed to connect batch port:", e);
             resolve();
             return;
         }
 
-        let fullResponse = "";
-        let buffer = ""; // Current chunk buffer
+        let buffer = "";
+        const appliedKeys = new Set();
 
-        // Helper to extract and apply objects from stream
         function processStreamBuffer() {
-            // We look for objects matching pattern {"id":..., "text":...}
-            // Simple approach: Iterate through buffer and try to find balanced braces that form valid JSON
-            let startIndex = buffer.indexOf('{');
-            while (startIndex !== -1) {
-                let braceCount = 0;
-                let endIndex = -1;
-                let inString = false;
-                let escape = false;
-
-                // Scan forward from startIndex to find matching closing brace
-                for (let i = startIndex; i < buffer.length; i++) {
-                    const char = buffer[i];
-
-                    if (escape) { escape = false; continue; }
-                    if (char === '\\') { escape = true; continue; }
-                    if (char === '"') { inString = !inString; continue; }
-
-                    if (!inString) {
-                        if (char === '{') braceCount++;
-                        if (char === '}') {
-                            braceCount--;
-                            if (braceCount === 0) {
-                                endIndex = i;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (endIndex !== -1) {
-                    // Potential object found
-                    const jsonStr = buffer.substring(startIndex, endIndex + 1);
+            const regex = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g;
+            let match;
+            while ((match = regex.exec(buffer)) !== null) {
+                const id = match[1];
+                if (!appliedKeys.has(id)) {
+                    appliedKeys.add(id);
+                    let text = match[2];
                     try {
-                        const obj = JSON.parse(jsonStr);
-                        if (obj.id && obj.text) {
-                            applyTranslations([obj]); // Apply immediately
-                        }
-
-                        // Move past this object
-                        buffer = buffer.substring(endIndex + 1);
-                        startIndex = buffer.indexOf('{');
-                    } catch (e) {
-                        // Invalid JSON, maybe just partially similar structure or text. 
-                        // If parsing failed but we found balanced braces, it implies structure error or just garbage.
-                        // We skip this '{' and search next
-                        startIndex = buffer.indexOf('{', startIndex + 1);
+                        text = JSON.parse(`"${text}"`);
+                    } catch (_) {
+                        text = text.replace(/\\"/g, '"').replace(/\\n/g, '\n');
                     }
-                } else {
-                    // No closing brace found yet, wait for more chunks
-                    break;
+                    applyBlockTranslation(id, text);
                 }
             }
         }
 
         port.onMessage.addListener((msg) => {
             if (msg.action === "chunk") {
-                fullResponse += msg.text;
                 buffer += msg.text;
                 processStreamBuffer();
             } else if (msg.action === "done") {
-                // Final flush/check (in case any remained, or fallback for whole array)
-                // If stream parsing worked, buffer should be mostly empty or just `]`.
-
-                // Safety net: if nothing was translated via stream (maybe format was weird), try full parse
-                // But generally processStreamBuffer should handle it.
-                if (buffer.trim().length > 5) {
-                    // Try parsing what's left
-                    processStreamBuffer();
-                }
-
-                port.disconnect();
+                processStreamBuffer();
+                try { port.disconnect(); } catch (_) {}
                 resolve();
             } else if (msg.action === "error") {
-                console.error("Batch translate error", msg.error);
-                port.disconnect();
-                resolve(); // Continue anyway
+                console.error("[HyperAssistant] Batch translation error:", msg.error);
+                try { port.disconnect(); } catch (_) {}
+                resolve();
             }
         });
 
@@ -1106,23 +1067,60 @@ function translateBatch(batchPayload) {
     });
 }
 
-function applyTranslations(translations) {
+function applyBlockTranslation(id, translatedText) {
     if (!pageTranslationActive) return;
+    const record = pageBlockMap.get(id);
+    if (!record || !translatedText) return;
 
-    translations.forEach(item => {
-        const id = item.id;
-        const newText = item.text;
+    const el = record.element;
+    if (!el || !document.body.contains(el)) return;
 
-        if (originalTextMap.has(id)) {
-            const { node } = originalTextMap.get(id);
-            if (node && newText) {
-                node.textContent = newText; // Replace text
-            }
+    let transEl = el.querySelector(':scope > ht-trans.ht-trans-block');
+    if (!transEl) {
+        // Wrap original content cleanly without destroying child elements or event listeners
+        const origWrap = document.createElement('span');
+        origWrap.className = 'ht-orig-content';
+        while (el.firstChild) {
+            origWrap.appendChild(el.firstChild);
         }
-        translatedNodesCount++;
+        el.appendChild(origWrap);
+
+        transEl = document.createElement('ht-trans');
+        transEl.className = 'ht-trans-block';
+        el.appendChild(transEl);
+    }
+
+    transEl.textContent = translatedText;
+    pageTranslatedCount++;
+    updateStatusBar(pageTranslatedCount, pageTotalBlocks);
+}
+
+function restorePage() {
+    pageTranslationActive = false;
+    document.body.classList.remove('ht-mode-bilingual', 'ht-mode-translation', 'ht-mode-original');
+
+    pageBlockMap.forEach((record) => {
+        const el = record.element;
+        if (!el) return;
+
+        const transEl = el.querySelector(':scope > ht-trans.ht-trans-block');
+        if (transEl) transEl.remove();
+
+        const origWrap = el.querySelector(':scope > .ht-orig-content');
+        if (origWrap) {
+            while (origWrap.firstChild) {
+                el.insertBefore(origWrap.firstChild, origWrap);
+            }
+            origWrap.remove();
+        }
+        delete el.dataset.htId;
     });
 
-    updateStatusBar(translatedNodesCount, totalNodesToTranslate);
+    pageBlockMap.clear();
+    if (statusBar) {
+        statusBar.remove();
+        statusBar = null;
+    }
 }
 
 // === Khởi tạo ===

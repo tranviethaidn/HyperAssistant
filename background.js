@@ -853,7 +853,7 @@ chrome.runtime.onConnect.addListener((port) => {
             const inputJSON = JSON.stringify(message.batchData);
             const targetLanguage = (message.targetLanguage || resolvedSettings.defaultTargetLanguage || 'english').toLowerCase();
 
-            // Use fast model (gemini-2.5-flash-lite / default) with concurrency pool for Full Page Translate
+            // Use fast model (gemini-3.5-flash-lite / default) with concurrency pool for Full Page Translate
             if (resolvedSettings.apiProvider === 'gemini') {
                 const batchSettings = {
                     ...resolvedSettings,

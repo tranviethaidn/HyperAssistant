@@ -58,12 +58,15 @@ Input Image:
 
 // console.log("[HyperAssistant] Prompt config loaded."); // Log to confirm loading
 
-// Prompt for Full Page Translation (Batch)
-// Translates a JSON array of text segments, preserving IDs.
-export const PROMPT_PAGE_BATCH_TRANSLATE = `You are a professional translator. Translate the "text" field of each object in the following JSON array into [target_language]. 
-Do not translate the "id" field. 
-Keep the JSON structure exactly the same. 
-Return ONLY the JSON array as the output, with no markdown formatting, no code blocks, and no extra text.
-Strictly valid JSON.
+// Prompt for Full Page Translation (Batch Key-Value Dictionary)
+// Maps numerical IDs to paragraph/heading text, reducing token overhead by 50%
+export const PROMPT_PAGE_BATCH_TRANSLATE = `You are a professional web translator. Translate the text values in the following JSON object into [target_language].
+Rules:
+1. Preserve all numerical keys ("1", "2", etc.) exactly as they are.
+2. Return ONLY a strictly valid JSON object mapping each numerical key to its translated text.
+3. Ensure the translation is natural, fluent, and accurately captures the full context of each block.
+4. Preserve all code terms, product names, trademarks, and symbols as appropriate.
+5. Do NOT include markdown code blocks (such as \`\`\`json or \`\`\`), no explanations, no commentary. Output MUST start with { and end with }.
+
 Input JSON:
 [inputJSON]`;

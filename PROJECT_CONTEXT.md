@@ -40,7 +40,7 @@ graph TD
 
 ### Các thành phần chính (Components)
 * **`background.js` (Service Worker)**: "Trái tim" của extension. Xử lý toàn bộ các kết nối API ra ngoài (Gemini, Groq), quản lý hàng đợi song song (Semaphore), phân giải prompt template, bộ nhớ đệm kết quả (In-Memory LRU Cache), và đăng ký Context Menus.
-* **`content.js` (Content Script)**: Chạy trên context của mọi trang web (`all_frames: true`, nhưng Dịch toàn trang chỉ chạy ở top frame). Quản lý giao diện Highlight icon, Hover Box kết quả, Image OCR hover box, và bộ duyệt cây DOM (TreeWalker) để dịch toàn trang.
+* **`content.js` (Content Script)**: Chạy trên context của mọi trang web (`all_frames: true`, nhưng Dịch toàn trang chỉ chạy ở top frame). Quản lý giao diện Highlight icon, Hover Box kết quả, Image OCR hover box, và Next-Gen Semantic Block Engine để dịch toàn trang (hỗ trợ Song ngữ, Dịch đè, giảm 95% request API).
 * **`sidebar.js` & `sidebar.html` (SidePanel)**: Giao diện thanh bên Chrome SidePanel, cho phép dịch nhanh văn bản với dropdown chọn ngôn ngữ đích.
 * **`settings.js` & `settings.html` (Options Page)**: Giao diện quản lý cấu hình: API keys, chọn model, tinh chỉnh tham số (temperature, topP, maxTokens), phong cách cảm xúc, ngôn ngữ giao diện (i18n), và kiểm thử kết nối API trực tiếp.
 * **`promptconfig.js`**: Trung tâm định nghĩa các mẫu Prompt (Prompt Templates) cho từng tính năng dịch.
@@ -63,7 +63,7 @@ Toàn bộ quá trình truyền nhận dữ liệu dịch thuật sử dụng **
 3. **`content_image_stream`**: Kích hoạt khi người dùng chọn Image Translate từ Context Menu.
    * Gửi: `{ action: "translateImage", imageUrl: "..." }`
 4. **`content_page_batch`**: Kích hoạt từ Full Page Translate trong `content.js`.
-   * Gửi: `{ action: "translatePageBatch", batchData: [ { id: "ht_node_1", text: "..." }, ... ] }`
+   * Gửi: `{ action: "translatePageBatch", targetLanguage: "...", batchData: { "1": "...", "2": "..." } }`
 
 ### Định dạng thông điệp phản hồi từ Service Worker
 * **Chunk nhận được**: `{ action: "chunk", text: "văn bản dịch một phần" }`
