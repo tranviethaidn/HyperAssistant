@@ -22,7 +22,11 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
 
 ---
 
-### ⚡ Nâng cấp hiệu năng xử lý (Performance Enhancements)
+### ⚡ Nâng cấp hiệu năng & Cập nhật Model mới
+* **Hỗ trợ Model Gemini thế hệ mới nhất**:
+  * Tích hợp **`gemini-3.5-flash-lite`** làm mô hình mặc định cho tốc độ suy luận nhanh nhất, tối ưu tiêu thụ token.
+  * Tích hợp **`gemini-3.8-flash`** cho chế độ High Intelligence (độ thông minh cao, dịch chuẩn xác ngữ cảnh học thuật và văn phong chuyên sâu).
+  * Giữ nguyên hỗ trợ `gemini-2.5-flash-lite` và chế độ nhập `custom` model.
 * **Tăng tốc Dịch Toàn Trang 5x - 10x**: Chuyển model xử lý batch mặc định từ `gemma-3-27b-it` sang `gemini-2.5-flash-lite`.
 * **Mở khóa Semaphore đơn luồng**: Nâng giới hạn Semaphore xử lý batch lên 3 luồng song song, đồng thời tách riêng luồng ưu tiên cao (Fast Lane) cho các thao tác Highlight Translate và Sidebar Translate (không bị xếp hàng chờ đợi).
 * **Triệt tiêu Layout Thrashing**: Thêm bước kiểm tra nhanh `selection.toString().trim()` trên sự kiện `mouseup` để thoát ngay lập tức nếu không có vùng chọn, ngăn chặn việc duyệt cây DOM và đo đạc layout không cần thiết.
@@ -47,3 +51,4 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
   * Dịch hình ảnh (Image Translate).
   * Dịch toàn bộ trang web (Full Page Batch Translate).
   * Hỗ trợ Google Gemini API và Groq Cloud API qua chuẩn Server-Sent Events / Chunked Streaming.
+

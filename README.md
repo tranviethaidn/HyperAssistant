@@ -75,8 +75,9 @@ HyperAssistant kết nối trực tiếp từ trình duyệt của bạn tới A
 
 | Nhà cung cấp | Mô hình khuyên dùng | Đặc điểm |
 | :--- | :--- | :--- |
-| **Google Gemini** | `gemini-2.5-flash-lite` *(Mặc định)* | Tốc độ cực nhanh, nhẹ, miễn phí, tối ưu dịch thuật |
-| **Google Gemini** | `gemini-2.5-flash` | Trí tuệ cao, dịch ngữ cảnh phức tạp |
+| **Google Gemini** | `gemini-3.5-flash-lite` *(Mặc định)* | Tốc độ cực nhanh, nhẹ, miễn phí, mô hình thế hệ mới tối ưu dịch thuật |
+| **Google Gemini** | `gemini-3.8-flash` | Trí tuệ cao vượt trội, dịch ngữ cảnh phức tạp và chuyên sâu |
+| **Google Gemini** | `gemini-2.5-flash-lite` | Mô hình ổn định thế hệ trước |
 | **Google Gemini** | `custom` | Tự do nhập bất kỳ Model ID nào từ Google AI Studio |
 | **Groq Cloud** | `llama-3.3-70b-versatile` | Chất lượng dịch ngữ nghĩa cao, tốc độ suy luận mili-giây |
 | **Groq Cloud** | `llama-3.1-8b-instant` | Phản hồi siêu tốc cho văn bản ngắn |
@@ -107,3 +108,4 @@ HyperAssistant tuân thủ tiêu chuẩn nghiêm ngặt của Chrome Extensions 
 * **Tác giả**: [tranviethaidn](https://github.com/tranviethaidn)
 * **Repository**: [https://github.com/tranviethaidn/HyperAssistant](https://github.com/tranviethaidn/HyperAssistant)
 * Mọi đóng góp (Pull Request, Bug Report, Feature Request) đều được hoan nghênh nồng nhiệt!
+

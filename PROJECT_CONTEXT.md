@@ -87,7 +87,7 @@ interface HyperAssistantSettings {
   apiProvider: 'gemini' | 'groq';            // Nhà cung cấp API
   apiKey: string;                            // Gemini API Key
   groqApiKey: string;                        // Groq API Key
-  modelName: string;                         // Gemini Model ID (mặc định: 'gemini-2.5-flash-lite')
+  modelName: string;                         // Gemini Model ID (mặc định: 'gemini-3.5-flash-lite')
   groqModelName: string;                     // Groq Model ID (mặc định: 'llama-3.3-70b-versatile')
   customModel: string;                       // Tùy chỉnh Model ID tự do
   geminiMode: 'api' | 'live';                // Chế độ Gemini (REST API vs Live WebSocket)
@@ -138,3 +138,4 @@ interface HyperAssistantSettings {
 * **Kiểm tra cú pháp**: Chạy `node --check <file.js>` trên toàn bộ các tệp `.js`.
 * **Kiểm tra i18n keys**: Đảm bảo mọi thẻ có thuộc tính `data-i18n` đều tồn tại khóa tương ứng trong cả hai ngôn ngữ `en` và `vi` của `ui_translations.js`.
 * **Kiểm tra tương thích ngôn ngữ**: Dịch thử các đoạn văn bản chứa ký tự tiếng Nhật, Hàn, Trung Quốc, Nga, Tiếng Việt có dấu, và văn bản chứa đơn vị tiền tệ như `$100`, `$50.99`.
+

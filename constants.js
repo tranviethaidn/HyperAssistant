@@ -2,7 +2,7 @@ export const DEFAULT_SETTINGS = {
     apiProvider: 'gemini',            // API provider: 'gemini' or 'groq'
     apiKey: '',                       // User needs to provide this (Gemini API key)
     groqApiKey: '',                   // Groq API key
-    modelName: 'gemini-2.5-flash-lite',    // Default Gemini model
+    modelName: 'gemini-3.5-flash-lite',    // Default Gemini model
     groqModelName: 'llama-3.3-70b-versatile', // Default Groq model
     customModel: '',                  // Custom model (if provided)
     geminiMode: 'api',                // Gemini mode for Model Settings: 'api' or 'live'

@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             apiProvider: currentProvider,
             // Gemini settings
             apiKey: apiKeyInput.value.trim(),
-            modelName: isGeminiCustomModel ? (DEFAULT_SETTINGS.modelName || 'gemini-2.5-flash-lite') : modelSelect.value,
+            modelName: isGeminiCustomModel ? (DEFAULT_SETTINGS.modelName || 'gemini-3.5-flash-lite') : modelSelect.value,
             customModel: isGeminiCustomModel ? customModelInput.value.trim() : '',
             geminiMode: geminiMode,
             liveModelId: normalizeGeminiModelId(liveModelIdInput?.value || ''),

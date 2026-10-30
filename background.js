@@ -857,7 +857,7 @@ chrome.runtime.onConnect.addListener((port) => {
             if (resolvedSettings.apiProvider === 'gemini') {
                 const batchSettings = {
                     ...resolvedSettings,
-                    modelName: resolvedSettings.modelName || 'gemini-2.5-flash-lite',
+                    modelName: resolvedSettings.modelName || 'gemini-3.5-flash-lite',
                     customModel: resolvedSettings.customModel || ''
                 };
                 streamGeminiAPI(inputJSON, PROMPT_PAGE_BATCH_TRANSLATE, targetLanguage, batchSettings, port, true);
