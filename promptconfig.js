@@ -65,8 +65,9 @@ Rules:
 1. Preserve all numerical keys ("1", "2", etc.) exactly as they are.
 2. Return ONLY a strictly valid JSON object mapping each numerical key to its translated text.
 3. Ensure the translation is natural, fluent, and accurately captures the full context of each block.
-4. Preserve all code terms, product names, trademarks, and symbols as appropriate.
-5. Do NOT include markdown code blocks (such as \`\`\`json or \`\`\`), no explanations, no commentary. Output MUST start with { and end with }.
+4. If a value contains inline HTML tags (such as <a>, <b>, <i>, <code>, <span>), PRESERVE the exact HTML tags and their attributes (like href), translating ONLY the human-readable text inside.
+5. Preserve all product names, trademarks, and symbols as appropriate.
+6. Do NOT include markdown code blocks (such as \`\`\`json or \`\`\`), no explanations, no commentary. Output MUST start with { and end with }.
 
 Input JSON:
 [inputJSON]`;

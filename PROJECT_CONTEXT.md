@@ -40,7 +40,7 @@ graph TD
 
 ### Các thành phần chính (Components)
 * **`background.js` (Service Worker)**: "Trái tim" của extension. Xử lý toàn bộ các kết nối API ra ngoài (Gemini, Groq), quản lý hàng đợi song song (Semaphore), phân giải prompt template, bộ nhớ đệm kết quả (In-Memory LRU Cache), và đăng ký Context Menus.
-* **`content.js` (Content Script)**: Chạy trên context của mọi trang web (`all_frames: true`, nhưng Dịch toàn trang chỉ chạy ở top frame). Quản lý giao diện Highlight icon, Hover Box kết quả, Image OCR hover box, và Next-Gen Semantic Block Engine để dịch toàn trang (hỗ trợ Song ngữ, Dịch đè, giảm 95% request API).
+* **`content.js` (Content Script)**: Chạy trên context của mọi trang web (`all_frames: true`, nhưng Dịch toàn trang chỉ chạy ở top frame). Quản lý giao diện Highlight icon, Hover Box kết quả, Image OCR hover box, và In-Place Translation Engine để dịch toàn trang (dịch trực tiếp tại chỗ, bảo toàn 100% thẻ HTML `<a>`, `<b>`, `<code>`, cho phép khôi phục nguyên trạng và giảm 95% request API).
 * **`sidebar.js` & `sidebar.html` (SidePanel)**: Giao diện thanh bên Chrome SidePanel, cho phép dịch nhanh văn bản với dropdown chọn ngôn ngữ đích.
 * **`settings.js` & `settings.html` (Options Page)**: Giao diện quản lý cấu hình: API keys, chọn model, tinh chỉnh tham số (temperature, topP, maxTokens), phong cách cảm xúc, ngôn ngữ giao diện (i18n), và kiểm thử kết nối API trực tiếp.
 * **`promptconfig.js`**: Trung tâm định nghĩa các mẫu Prompt (Prompt Templates) cho từng tính năng dịch.

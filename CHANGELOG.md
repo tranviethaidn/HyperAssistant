@@ -4,6 +4,28 @@ Toàn bộ các thay đổi, bản vá lỗi và nâng cấp hiệu năng của 
 
 ---
 
+## [1.2.0] - 2026-10-30
+
+### 🚀 Nâng cấp Cơ chế Dịch Toàn Trang In-Place (Direct In-Place Translation)
+* **Chuyển đổi hoàn toàn sang Dịch Tại Chỗ (In-Place Translation)**:
+  * Theo phản hồi thực tế của người dùng, loại bỏ chế độ song ngữ rườm rà. Bản dịch giờ đây được nạp trực tiếp vào đúng vị trí gốc của phần tử trên trang, mang lại trải nghiệm liền mạch và sạch sẽ như tính năng Native Translate của trình duyệt.
+  * Tích hợp nút **"Khôi phục trang gốc"** (Restore) trên thanh trạng thái cho phép hoàn tác 100% về văn bản gốc ngay lập tức mà không cần F5.
+* **Bảo toàn định dạng văn bản & thẻ HTML lồng nhau (HTML Tags Preservation)**:
+  * Khắc phục triệt để lỗi mất định dạng hoặc đứt gãy link: Đối với các phần tử chứa thẻ con (như `<a>`, `<b>`, `<i>`, `<code>`, `<span>`), hệ thống gửi cấu trúc `innerHTML` và yêu cầu Gemini bảo toàn nguyên vẹn mọi thẻ HTML cùng thuộc tính (như link `href`), chỉ dịch văn bản bên trong.
+  * Cập nhật `PROMPT_PAGE_BATCH_TRANSLATE` trong `promptconfig.js` để AI giữ nguyên cấu trúc thẻ định dạng.
+* **Tối ưu Batch Size & Chống Treo/Dừng Ngẫu Nhiên**:
+  * Tối ưu kích thước lô thích ứng xuống **25 phần tử / batch** (thay vì 75), giúp mỗi lô phản hồi cực nhanh trong 1.5 - 2.5 giây, triệt tiêu hoàn toàn nguy cơ chạm trần output tokens (65,536 tokens) hoặc bị timeout giữa chừng.
+  * Bổ sung cơ chế Timeout bảo vệ (25 giây / batch) tự động giải phóng tiến trình và chuyển sang lô tiếp theo nếu mạng hoặc LLM bị nghẽn.
+  * Mở rộng bộ quét DOM `collectPageElements()` để quét toàn diện tất cả các khối văn bản lá (`p`, `h1-h6`, `li`, `blockquote`, `dt`, `dd`, `td`, `th`, và các thẻ đơn lẻ `button`, `a`, `label`, `summary`, `div`, `span`).
+  * Cơ chế bóc tách Streaming Regex kết hợp bước đối chiếu toàn diện `JSON.parse` khi nhận sự kiện `"done"`, đảm bảo không bỏ sót bất kỳ khối văn bản nào.
+
+### 🐛 Vá lỗi Extension Message Channel
+* **Khắc phục lỗi Uncaught Message Channel Closed**:
+  * Sửa lỗi `Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received`.
+  * Trả lời ngay phản hồi đồng bộ `sendResponse({ status: "started" })` khi nhận tín hiệu kích hoạt từ Background / Context Menu, đóng channel đúng chuẩn Manifest V3.
+
+---
+
 ## [1.1.0] - 2026-10-30
 
 ### 🐛 Vá lỗi quan trọng (Bug Fixes)

@@ -275,21 +275,21 @@
 /* === LOẠI BỎ CLASS ẨN KHÔNG CẦN THIẾT === */
 /* .gemini-translator-hidden { ... } */
 
-/* === Next-Gen Full Page Translator Status Bar === */
+/* === Full Page Translator Status Bar (In-Place Translation) === */
 #hypertranslator-page-status-bar {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     z-index: 2147483647;
-    background-color: rgba(17, 25, 40, 0.95);
+    background-color: rgba(17, 25, 40, 0.94);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    color: #f5f5f5;
+    color: #f8fafc;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 16px;
+    padding: 8px 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -312,38 +312,12 @@
 #hypertranslator-page-status-bar .status-center {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
-#hypertranslator-page-status-bar .ht-mode-group {
-    display: inline-flex;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-#hypertranslator-page-status-bar .ht-mode-btn {
-    background: transparent;
-    border: none;
-    color: #cbd5e1;
-    padding: 4px 10px;
+#hypertranslator-page-status-bar .status-center label {
     font-size: 12px;
-    font-weight: 500;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-#hypertranslator-page-status-bar .ht-mode-btn:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-}
-
-#hypertranslator-page-status-bar .ht-mode-btn.active {
-    background: #3b82f6;
-    color: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    color: #94a3b8;
 }
 
 #hypertranslator-page-status-bar #ht-page-target-lang {
@@ -372,7 +346,7 @@
     background-color: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: white;
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 12px;
@@ -382,6 +356,15 @@
 
 #hypertranslator-page-status-bar button:hover {
     background-color: rgba(255, 255, 255, 0.2);
+}
+
+#hypertranslator-page-status-bar #hypertranslator-restore-btn {
+    background-color: #2563eb;
+    border-color: #3b82f6;
+}
+
+#hypertranslator-page-status-bar #hypertranslator-restore-btn:hover {
+    background-color: #1d4ed8;
 }
 
 #hypertranslator-page-status-bar #hypertranslator-close-bar-btn {
@@ -401,47 +384,4 @@
 
 @keyframes ht-spin {
     to { transform: rotate(360deg); }
-}
-
-/* === Next-Gen Semantic Block Translation Elements === */
-ht-trans.ht-trans-block {
-    display: block !important;
-    margin-top: 6px !important;
-    margin-bottom: 6px !important;
-    color: #2563eb !important;
-    font-style: normal !important;
-    font-weight: 400 !important;
-    line-height: 1.55 !important;
-    border-left: 3px solid #3b82f6 !important;
-    padding-left: 10px !important;
-    background: rgba(59, 130, 246, 0.04) !important;
-    border-radius: 0 6px 6px 0 !important;
-    text-align: left !important;
-    letter-spacing: normal !important;
-}
-
-/* Dark mode theme support for translated blocks */
-@media (prefers-color-scheme: dark) {
-    ht-trans.ht-trans-block {
-        color: #60a5fa !important;
-        border-left-color: #60a5fa !important;
-        background: rgba(96, 165, 250, 0.08) !important;
-    }
-}
-
-/* View Mode: Translation Only */
-body.ht-mode-translation .ht-orig-content {
-    display: none !important;
-}
-body.ht-mode-translation ht-trans.ht-trans-block {
-    border-left: none !important;
-    padding-left: 0 !important;
-    background: transparent !important;
-    color: inherit !important;
-    margin: 0 !important;
-}
-
-/* View Mode: Original Only */
-body.ht-mode-original ht-trans.ht-trans-block {
-    display: none !important;
 }

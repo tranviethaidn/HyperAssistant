@@ -6,15 +6,14 @@ let hoverBox = null;                // Box kết quả G
 let currentSelection = null;        // Selection hiện tại
 let imageTranslateBox = null;       // Box kết quả dịch ảnh
 
-// === Biến toàn cục cho Dịch Toàn Trang (Next-Gen Semantic Block Engine) ===
+// === Biến toàn cục cho Dịch Toàn Trang (In-Place Translation Engine) ===
 let pageTranslationActive = false;
-let pageBlockMap = new Map(); // id -> { element }
+let pageBlockMap = new Map(); // id -> { element, originalHTML, hasChildTags }
 let statusBar = null;
 let pageTranslatedCount = 0;
 let pageTotalBlocks = 0;
 let blockIdCounter = 0;
 let pageTargetLang = 'vietnamese';
-let pageViewMode = 'bilingual'; // 'bilingual' | 'translation' | 'original'
 
 // Helper to check if extension context is alive and valid
 function isExtensionValid() {
@@ -824,40 +823,75 @@ document.addEventListener('mouseup', (event) => {
 // === Listen for messages from background script ===
 if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "initiateImageTranslate") {
-        handleImageTranslate(message.imageUrl);
-        return true;
-    } else if (message.action === "initiateFullPageTranslate") {
-        if (window !== window.top) return false;
-        handleFullPageTranslate();
-        return true;
-    }
-    return false;
+        if (message.action === "initiateImageTranslate") {
+            handleImageTranslate(message.imageUrl);
+            sendResponse({ status: "started" });
+        } else if (message.action === "initiateFullPageTranslate") {
+            if (window === window.top) {
+                handleFullPageTranslate();
+                sendResponse({ status: "started" });
+            } else {
+                sendResponse({ status: "ignored_iframe" });
+            }
+        }
     });
 }
 
 
-// === Logic Dịch Toàn Trang (Next-Gen Semantic Block Engine) ===
+// === Logic Dịch Toàn Trang (In-Place Translation Engine) ===
 
-const SEMANTIC_BLOCK_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th';
+const PRIMARY_BLOCK_TAGS = [
+    'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote',
+    'figcaption', 'dt', 'dd', 'td', 'th', 'button', 'a', 'label', 'summary'
+];
 
-function collectSemanticBlocks() {
-    const candidates = document.querySelectorAll(SEMANTIC_BLOCK_SELECTORS);
-    const blocks = [];
+function collectPageElements() {
+    const candidates = document.querySelectorAll(PRIMARY_BLOCK_TAGS.join(', '));
+    const elementsToTranslate = [];
+    const seenElements = new Set();
+
+    // 1. Process candidate semantic elements
     for (const el of candidates) {
         if (!isNodeVisible(el)) continue;
         if (el.closest('#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]')) continue;
 
-        // Leaf block filter: if a block contains another semantic block (e.g., <li> containing <p>), only collect the leaf block
-        const hasChildBlock = el.querySelector(SEMANTIC_BLOCK_SELECTORS);
-        if (hasChildBlock) continue;
+        // Skip if element has child block candidates (e.g. <li> with <p> inside) to only translate leaf blocks
+        if (el.querySelector(PRIMARY_BLOCK_TAGS.join(', '))) continue;
 
         const text = el.innerText?.trim() || '';
         if (text.length >= 2 && /[\p{L}\p{N}]/u.test(text)) {
-            blocks.push(el);
+            elementsToTranslate.push(el);
+            seenElements.add(el);
         }
     }
-    return blocks;
+
+    // 2. Also capture standalone div/span elements with direct text not covered above
+    const standaloneDivs = document.querySelectorAll('div, span');
+    for (const el of standaloneDivs) {
+        if (seenElements.has(el)) continue;
+        if (!isNodeVisible(el)) continue;
+        if (el.closest('#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]')) continue;
+
+        // Must not contain any other candidate or container
+        if (el.querySelector(PRIMARY_BLOCK_TAGS.join(', ') + ', div, span')) continue;
+
+        // Must not have an ancestor already selected
+        let ancestorSeen = false;
+        let p = el.parentElement;
+        while (p && p !== document.body) {
+            if (seenElements.has(p)) { ancestorSeen = true; break; }
+            p = p.parentElement;
+        }
+        if (ancestorSeen) continue;
+
+        const text = el.innerText?.trim() || '';
+        if (text.length >= 2 && /[\p{L}\p{N}]/u.test(text)) {
+            elementsToTranslate.push(el);
+            seenElements.add(el);
+        }
+    }
+
+    return elementsToTranslate;
 }
 
 async function handleFullPageTranslate(customLang = null) {
@@ -876,7 +910,7 @@ async function handleFullPageTranslate(customLang = null) {
     }
 
     createStatusBar();
-    scanAndTranslateBlocks();
+    scanAndTranslateInPlace();
 }
 
 function createStatusBar() {
@@ -889,11 +923,7 @@ function createStatusBar() {
             <span id="ht-status-message">Đang dịch trang... (0%)</span>
         </div>
         <div class="status-center">
-            <div class="ht-mode-group">
-                <button type="button" class="ht-mode-btn active" data-mode="bilingual" title="Hiện cả câu gốc và câu dịch">📖 Song ngữ</button>
-                <button type="button" class="ht-mode-btn" data-mode="translation" title="Chỉ hiện bản dịch">📄 Bản dịch</button>
-                <button type="button" class="ht-mode-btn" data-mode="original" title="Hiện văn bản gốc">📑 Bản gốc</button>
-            </div>
+            <label for="ht-page-target-lang">Ngôn ngữ:</label>
             <select id="ht-page-target-lang" title="Đổi ngôn ngữ dịch">
                 <option value="vietnamese">Tiếng Việt</option>
                 <option value="english">English</option>
@@ -908,18 +938,11 @@ function createStatusBar() {
             </select>
         </div>
         <div class="status-right">
-            <button type="button" id="hypertranslator-restore-btn">Khôi phục</button>
-            <button type="button" id="hypertranslator-close-bar-btn" title="Đóng thanh tiến trình">✕</button>
+            <button type="button" id="hypertranslator-restore-btn">Khôi phục trang gốc</button>
+            <button type="button" id="hypertranslator-close-bar-btn" title="Đóng thanh trạng thái">✕</button>
         </div>
     `;
     document.body.appendChild(statusBar);
-
-    // Event listeners for view modes
-    statusBar.querySelectorAll('.ht-mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            setPageViewMode(btn.dataset.mode);
-        });
-    });
 
     const langSelect = statusBar.querySelector('#ht-page-target-lang');
     if (langSelect) {
@@ -940,19 +963,6 @@ function createStatusBar() {
             statusBar = null;
         }
     });
-
-    setPageViewMode('bilingual');
-}
-
-function setPageViewMode(mode) {
-    pageViewMode = mode;
-    document.body.classList.remove('ht-mode-bilingual', 'ht-mode-translation', 'ht-mode-original');
-    document.body.classList.add(`ht-mode-${mode}`);
-    if (statusBar) {
-        statusBar.querySelectorAll('.ht-mode-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === mode);
-        });
-    }
 }
 
 function updateStatusBar(progress, total) {
@@ -961,16 +971,16 @@ function updateStatusBar(progress, total) {
         const percent = total > 0 ? Math.round((progress / total) * 100) : 0;
         msg.textContent = `Đang dịch trang... ${progress}/${total} (${percent}%)`;
         if (progress >= total && total > 0) {
-            msg.textContent = `Dịch hoàn tất (${total} đoạn)`;
+            msg.textContent = `Dịch hoàn tất (${total} mục)`;
             const spinner = statusBar?.querySelector('.ht-spinner');
             if (spinner) spinner.style.display = 'none';
         }
     }
 }
 
-async function scanAndTranslateBlocks() {
-    const validBlocks = collectSemanticBlocks();
-    pageTotalBlocks = validBlocks.length;
+async function scanAndTranslateInPlace() {
+    const elements = collectPageElements();
+    pageTotalBlocks = elements.length;
     pageTranslatedCount = 0;
     updateStatusBar(0, pageTotalBlocks);
 
@@ -979,29 +989,40 @@ async function scanAndTranslateBlocks() {
         return;
     }
 
-    // Large Batching: 75 blocks per batch (reduces requests to 1-2 per page!)
-    const BATCH_SIZE = 75;
+    // Adaptive Batching: 25 items per batch
+    // Fast generation (~1.5-2.5s), zero token cutoff risk, steady progress
+    const BATCH_SIZE = 25;
     const allBatches = [];
 
-    for (let i = 0; i < validBlocks.length; i += BATCH_SIZE) {
-        const slice = validBlocks.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < elements.length; i += BATCH_SIZE) {
+        const slice = elements.slice(i, i + BATCH_SIZE);
         const payloadDict = {};
         slice.forEach(el => {
             const id = String(++blockIdCounter);
             el.dataset.htId = id;
-            pageBlockMap.set(id, { element: el });
-            payloadDict[id] = el.innerText.trim();
+
+            // Check if element contains inline tags (like <a>, <b>, <i>, <code>)
+            const hasChildTags = el.children.length > 0;
+            const contentToSend = hasChildTags ? el.innerHTML.trim() : el.textContent.trim();
+
+            pageBlockMap.set(id, {
+                element: el,
+                originalHTML: el.innerHTML,
+                hasChildTags: hasChildTags
+            });
+
+            payloadDict[id] = contentToSend;
         });
         allBatches.push(payloadDict);
     }
 
     for (const batch of allBatches) {
         if (!pageTranslationActive) break;
-        await translateSemanticBatch(batch);
+        await translateBatchInPlace(batch);
     }
 }
 
-function translateSemanticBatch(batchPayload) {
+function translateBatchInPlace(batchPayload) {
     return new Promise((resolve) => {
         if (!pageTranslationActive) { resolve(); return; }
 
@@ -1027,11 +1048,27 @@ function translateSemanticBatch(batchPayload) {
 
         let buffer = "";
         const appliedKeys = new Set();
+        let timeoutTimer = null;
+
+        function cleanup() {
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            try { port.disconnect(); } catch (_) {}
+        }
+
+        // Safety timeout of 25 seconds per batch to avoid freezing if API hangs
+        timeoutTimer = setTimeout(() => {
+            cleanup();
+            resolve();
+        }, 25000);
 
         function processStreamBuffer() {
+            let cleaned = buffer.trim();
+            if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
+            else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
+
             const regex = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g;
             let match;
-            while ((match = regex.exec(buffer)) !== null) {
+            while ((match = regex.exec(cleaned)) !== null) {
                 const id = match[1];
                 if (!appliedKeys.has(id)) {
                     appliedKeys.add(id);
@@ -1041,9 +1078,31 @@ function translateSemanticBatch(batchPayload) {
                     } catch (_) {
                         text = text.replace(/\\"/g, '"').replace(/\\n/g, '\n');
                     }
-                    applyBlockTranslation(id, text);
+                    applyInPlaceTranslation(id, text);
                 }
             }
+        }
+
+        function finalizeParse() {
+            processStreamBuffer();
+            // Fallback: try parsing whole JSON if regex missed any trailing keys
+            try {
+                let finalClean = buffer.trim();
+                if (finalClean.startsWith('```json')) finalClean = finalClean.slice(7);
+                else if (finalClean.startsWith('```')) finalClean = finalClean.slice(3);
+                if (finalClean.endsWith('```')) finalClean = finalClean.slice(0, -3);
+
+                const jsonEnd = finalClean.lastIndexOf('}');
+                if (jsonEnd !== -1) finalClean = finalClean.substring(0, jsonEnd + 1);
+
+                const fullObj = JSON.parse(finalClean);
+                for (const [id, text] of Object.entries(fullObj)) {
+                    if (!appliedKeys.has(id)) {
+                        appliedKeys.add(id);
+                        applyInPlaceTranslation(id, text);
+                    }
+                }
+            } catch (_) {}
         }
 
         port.onMessage.addListener((msg) => {
@@ -1051,68 +1110,49 @@ function translateSemanticBatch(batchPayload) {
                 buffer += msg.text;
                 processStreamBuffer();
             } else if (msg.action === "done") {
-                processStreamBuffer();
-                try { port.disconnect(); } catch (_) {}
+                finalizeParse();
+                cleanup();
                 resolve();
             } else if (msg.action === "error") {
                 console.error("[HyperAssistant] Batch translation error:", msg.error);
-                try { port.disconnect(); } catch (_) {}
+                cleanup();
                 resolve();
             }
         });
 
         port.onDisconnect.addListener(() => {
+            cleanup();
             resolve();
         });
     });
 }
 
-function applyBlockTranslation(id, translatedText) {
+function applyInPlaceTranslation(id, translatedContent) {
     if (!pageTranslationActive) return;
     const record = pageBlockMap.get(id);
-    if (!record || !translatedText) return;
+    if (!record || !translatedContent) return;
 
     const el = record.element;
     if (!el || !document.body.contains(el)) return;
 
-    let transEl = el.querySelector(':scope > ht-trans.ht-trans-block');
-    if (!transEl) {
-        // Wrap original content cleanly without destroying child elements or event listeners
-        const origWrap = document.createElement('span');
-        origWrap.className = 'ht-orig-content';
-        while (el.firstChild) {
-            origWrap.appendChild(el.firstChild);
-        }
-        el.appendChild(origWrap);
-
-        transEl = document.createElement('ht-trans');
-        transEl.className = 'ht-trans-block';
-        el.appendChild(transEl);
+    // Apply translation directly in place, preserving layout and tags
+    if (record.hasChildTags) {
+        el.innerHTML = translatedContent;
+    } else {
+        el.textContent = translatedContent;
     }
 
-    transEl.textContent = translatedText;
     pageTranslatedCount++;
     updateStatusBar(pageTranslatedCount, pageTotalBlocks);
 }
 
 function restorePage() {
     pageTranslationActive = false;
-    document.body.classList.remove('ht-mode-bilingual', 'ht-mode-translation', 'ht-mode-original');
 
     pageBlockMap.forEach((record) => {
         const el = record.element;
-        if (!el) return;
-
-        const transEl = el.querySelector(':scope > ht-trans.ht-trans-block');
-        if (transEl) transEl.remove();
-
-        const origWrap = el.querySelector(':scope > .ht-orig-content');
-        if (origWrap) {
-            while (origWrap.firstChild) {
-                el.insertBefore(origWrap.firstChild, origWrap);
-            }
-            origWrap.remove();
-        }
+        if (!el || !document.body.contains(el)) return;
+        el.innerHTML = record.originalHTML;
         delete el.dataset.htId;
     });
 
