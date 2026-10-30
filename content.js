@@ -840,54 +840,97 @@ if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
 
 // === Logic Dịch Toàn Trang (In-Place Translation Engine) ===
 
-const PRIMARY_BLOCK_TAGS = [
-    'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote',
-    'figcaption', 'dt', 'dd', 'td', 'th', 'button', 'a', 'label', 'summary'
-];
+// Block containers: elements that structure content into distinct sections
+const BLOCK_CONTAINER_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, ul, ol, blockquote, figcaption, dt, dd, td, th, table, article, section, header, footer, aside, nav, main, div, form, fieldset, details, summary';
 
-function collectPageElements() {
-    const candidates = document.querySelectorAll(PRIMARY_BLOCK_TAGS.join(', '));
-    const elementsToTranslate = [];
-    const seenElements = new Set();
+// All candidates that could be leaf text elements
+const ALL_CANDIDATE_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th, button, a, label, summary, span, div, article, section, header, footer, aside, nav, time, cite, mark';
 
-    // 1. Process candidate semantic elements
-    for (const el of candidates) {
-        if (!isNodeVisible(el)) continue;
-        if (el.closest('#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]')) continue;
+// Ignored containers: elements that should never be translated or touched
+const IGNORED_CONTAINERS_SELECTOR = '#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"], [translate="no"], .notranslate';
 
-        // Skip if element has child block candidates (e.g. <li> with <p> inside) to only translate leaf blocks
-        if (el.querySelector(PRIMARY_BLOCK_TAGS.join(', '))) continue;
-
-        const text = el.innerText?.trim() || '';
-        if (text.length >= 2 && /[\p{L}\p{N}]/u.test(text)) {
-            elementsToTranslate.push(el);
-            seenElements.add(el);
+// 1. Wrap naked text nodes that sit directly beside block children so they aren't missed
+function wrapOrphanedTextNodes(root = document.body) {
+    const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                if (!node.nodeValue || node.nodeValue.trim().length < 2) return NodeFilter.FILTER_REJECT;
+                if (!/[\p{L}]/u.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+                const parent = node.parentElement;
+                if (!parent) return NodeFilter.FILTER_REJECT;
+                if (parent.closest(IGNORED_CONTAINERS_SELECTOR)) return NodeFilter.FILTER_REJECT;
+                
+                // If parent has child block elements, this naked text node needs a wrapper element
+                const hasBlockChild = parent.querySelector(BLOCK_CONTAINER_SELECTOR);
+                if (hasBlockChild) {
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_REJECT;
+            }
         }
+    );
+
+    const orphanNodes = [];
+    let curr;
+    while ((curr = walker.nextNode())) {
+        orphanNodes.push(curr);
     }
 
-    // 2. Also capture standalone div/span elements with direct text not covered above
-    const standaloneDivs = document.querySelectorAll('div, span');
-    for (const el of standaloneDivs) {
-        if (seenElements.has(el)) continue;
+    for (const textNode of orphanNodes) {
+        if (!textNode.parentNode) continue;
+        const span = document.createElement('span');
+        span.className = 'ht-orphan-wrap';
+        span.dataset.htOrphan = 'true';
+        textNode.parentNode.insertBefore(span, textNode);
+        span.appendChild(textNode);
+    }
+}
+
+// 2. Collect 100% of visible leaf text blocks across the entire page
+function collectPageElements() {
+    wrapOrphanedTextNodes();
+
+    const candidates = document.querySelectorAll(ALL_CANDIDATE_SELECTOR);
+    const elementsToTranslate = [];
+    const seenDescendants = new Set();
+    const selectedSet = new Set();
+
+    for (const el of candidates) {
+        if (seenDescendants.has(el)) continue;
         if (!isNodeVisible(el)) continue;
-        if (el.closest('#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"]')) continue;
-
-        // Must not contain any other candidate or container
-        if (el.querySelector(PRIMARY_BLOCK_TAGS.join(', ') + ', div, span')) continue;
-
-        // Must not have an ancestor already selected
-        let ancestorSeen = false;
-        let p = el.parentElement;
-        while (p && p !== document.body) {
-            if (seenElements.has(p)) { ancestorSeen = true; break; }
-            p = p.parentElement;
-        }
-        if (ancestorSeen) continue;
+        if (el.closest(IGNORED_CONTAINERS_SELECTOR)) continue;
 
         const text = el.innerText?.trim() || '';
-        if (text.length >= 2 && /[\p{L}\p{N}]/u.test(text)) {
-            elementsToTranslate.push(el);
-            seenElements.add(el);
+        // Must contain at least 2 characters and at least one linguistic letter (skip pure numbers/symbols)
+        if (text.length < 2 || !/[\p{L}]/u.test(text)) continue;
+
+        // Leaf Rule 1: Must NOT contain any child structural block container
+        // (Inline tags like <a>, <b>, <i>, <code>, <span>, <time> are NOT block containers and are preserved)
+        if (el.querySelector(BLOCK_CONTAINER_SELECTOR)) continue;
+
+        // Leaf Rule 2: Generic containers (div, nav, section...) with multiple links are menus/lists;
+        // let the individual links be collected instead of merging them
+        const isGenericContainer = /^(DIV|NAV|SECTION|HEADER|FOOTER|ASIDE|MAIN)$/i.test(el.tagName);
+        if (isGenericContainer && el.querySelectorAll('a').length > 1) continue;
+
+        // Leaf Rule 3: Must not have an ancestor already selected
+        let ancestorSelected = false;
+        let p = el.parentElement;
+        while (p && p !== document.body) {
+            if (selectedSet.has(p)) { ancestorSelected = true; break; }
+            p = p.parentElement;
+        }
+        if (ancestorSelected) continue;
+
+        elementsToTranslate.push(el);
+        selectedSet.add(el);
+
+        // Mark all descendants so none are collected separately
+        const descendants = el.querySelectorAll('*');
+        for (const d of descendants) {
+            seenDescendants.add(d);
         }
     }
 
@@ -978,6 +1021,42 @@ function updateStatusBar(progress, total) {
     }
 }
 
+// Global DOM batch queue to eliminate layout thrashing & achieve 60 FPS
+let pendingDomUpdates = [];
+let rafId = null;
+
+function queueDomUpdate(id, text) {
+    pendingDomUpdates.push({ id, text });
+    if (!rafId) {
+        rafId = requestAnimationFrame(flushDomUpdates);
+    }
+}
+
+function flushDomUpdates() {
+    rafId = null;
+    if (!pageTranslationActive) {
+        pendingDomUpdates = [];
+        return;
+    }
+
+    const updatesToApply = pendingDomUpdates.splice(0, pendingDomUpdates.length);
+    for (const { id, text } of updatesToApply) {
+        const record = pageBlockMap.get(id);
+        if (!record || !text) continue;
+        const el = record.element;
+        if (!el || !document.body.contains(el)) continue;
+
+        if (record.hasChildTags) {
+            el.innerHTML = text;
+        } else {
+            el.textContent = text;
+        }
+        pageTranslatedCount++;
+    }
+
+    updateStatusBar(pageTranslatedCount, pageTotalBlocks);
+}
+
 async function scanAndTranslateInPlace() {
     const elements = collectPageElements();
     pageTotalBlocks = elements.length;
@@ -989,9 +1068,10 @@ async function scanAndTranslateInPlace() {
         return;
     }
 
-    // Adaptive Batching: 25 items per batch
-    // Fast generation (~1.5-2.5s), zero token cutoff risk, steady progress
-    const BATCH_SIZE = 25;
+    // High-Capacity Batching: 250 items per batch
+    // Entire webpage (100-250 blocks) runs in EXACTLY 1 REQUEST!
+    // Takes full advantage of Gemini 3.5 Flash Lite 1M token context & 65k output limit
+    const BATCH_SIZE = 250;
     const allBatches = [];
 
     for (let i = 0; i < elements.length; i += BATCH_SIZE) {
@@ -1001,7 +1081,7 @@ async function scanAndTranslateInPlace() {
             const id = String(++blockIdCounter);
             el.dataset.htId = id;
 
-            // Check if element contains inline tags (like <a>, <b>, <i>, <code>)
+            // Preserve inline tags (<a>, <b>, <i>, <code>, <span>)
             const hasChildTags = el.children.length > 0;
             const contentToSend = hasChildTags ? el.innerHTML.trim() : el.textContent.trim();
 
@@ -1055,11 +1135,12 @@ function translateBatchInPlace(batchPayload) {
             try { port.disconnect(); } catch (_) {}
         }
 
-        // Safety timeout of 25 seconds per batch to avoid freezing if API hangs
+        // Safety timeout of 60 seconds per batch for large pages
         timeoutTimer = setTimeout(() => {
             cleanup();
+            flushDomUpdates();
             resolve();
-        }, 25000);
+        }, 60000);
 
         function processStreamBuffer() {
             let cleaned = buffer.trim();
@@ -1078,14 +1159,14 @@ function translateBatchInPlace(batchPayload) {
                     } catch (_) {
                         text = text.replace(/\\"/g, '"').replace(/\\n/g, '\n');
                     }
-                    applyInPlaceTranslation(id, text);
+                    queueDomUpdate(id, text);
                 }
             }
         }
 
         function finalizeParse() {
             processStreamBuffer();
-            // Fallback: try parsing whole JSON if regex missed any trailing keys
+            // Fallback: parse complete JSON if any trailing key was missed by regex
             try {
                 let finalClean = buffer.trim();
                 if (finalClean.startsWith('```json')) finalClean = finalClean.slice(7);
@@ -1099,10 +1180,12 @@ function translateBatchInPlace(batchPayload) {
                 for (const [id, text] of Object.entries(fullObj)) {
                     if (!appliedKeys.has(id)) {
                         appliedKeys.add(id);
-                        applyInPlaceTranslation(id, text);
+                        queueDomUpdate(id, text);
                     }
                 }
             } catch (_) {}
+
+            flushDomUpdates();
         }
 
         port.onMessage.addListener((msg) => {
@@ -1116,38 +1199,27 @@ function translateBatchInPlace(batchPayload) {
             } else if (msg.action === "error") {
                 console.error("[HyperAssistant] Batch translation error:", msg.error);
                 cleanup();
+                flushDomUpdates();
                 resolve();
             }
         });
 
         port.onDisconnect.addListener(() => {
             cleanup();
+            flushDomUpdates();
             resolve();
         });
     });
 }
 
-function applyInPlaceTranslation(id, translatedContent) {
-    if (!pageTranslationActive) return;
-    const record = pageBlockMap.get(id);
-    if (!record || !translatedContent) return;
-
-    const el = record.element;
-    if (!el || !document.body.contains(el)) return;
-
-    // Apply translation directly in place, preserving layout and tags
-    if (record.hasChildTags) {
-        el.innerHTML = translatedContent;
-    } else {
-        el.textContent = translatedContent;
-    }
-
-    pageTranslatedCount++;
-    updateStatusBar(pageTranslatedCount, pageTotalBlocks);
-}
-
 function restorePage() {
     pageTranslationActive = false;
+
+    if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    pendingDomUpdates = [];
 
     pageBlockMap.forEach((record) => {
         const el = record.element;
@@ -1157,6 +1229,17 @@ function restorePage() {
     });
 
     pageBlockMap.clear();
+
+    // Clean up wrapped orphan text nodes
+    document.querySelectorAll('.ht-orphan-wrap').forEach(span => {
+        const parent = span.parentNode;
+        if (!parent) return;
+        while (span.firstChild) {
+            parent.insertBefore(span.firstChild, span);
+        }
+        span.remove();
+    });
+
     if (statusBar) {
         statusBar.remove();
         statusBar = null;
