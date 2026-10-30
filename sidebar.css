@@ -1,0 +1,376 @@
+/* sidebar.css */
+/* Styles for the HyperAssistant sidebar panel */
+
+/* Basic reset and default styling */
+body {
+    font-family: "Segoe UI", Tahoma, sans-serif; /* Common UI font */
+    font-size: 14px;
+    margin: 0;
+    padding: 15px;
+    background-color: #f8f9fa; /* Light background */
+    color: #202124; /* Dark grey text */
+    min-width: 280px;
+    box-sizing: border-box;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark theme styles */
+body.dark-theme {
+    background-color: #202124; /* Dark background */
+    color: #e8eaed; /* Light text */
+}
+
+*, *::before, *::after {
+    box-sizing: inherit;
+}
+
+/* Main container */
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* Consistent spacing */
+}
+
+/* Header with title and options button */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    padding: 0 0 8px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+body.dark-theme .header {
+    border-bottom-color: #5f6368;
+}
+
+/* Group for header buttons */
+.header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px; /* Small gap between buttons */
+}
+
+/* Title container with icon */
+.title-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.title-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.8;
+    transition: opacity 0.2s ease, filter 0.3s ease;
+}
+
+body.dark-theme .title-icon {
+    /* filter: invert(1) brightness(1.5); */ /* Removed filter */
+}
+
+/* Heading style */
+h2 {
+    margin: 0;
+    font-size: 1.15em;
+    font-weight: 600;
+    color: #202124; /* Black text */
+    text-align: left;
+}
+
+body.dark-theme h2 {
+    color: #e8eaed; /* Light text in dark mode */
+}
+
+/* Options button with icon */
+.options-button {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.options-button:hover {
+    background-color: rgba(60, 64, 67, 0.1);
+}
+
+body.dark-theme .options-button:hover {
+    background-color: rgba(232, 234, 237, 0.1);
+}
+
+/* Ensure .options-icon class targets the image correctly */
+.options-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, filter 0.3s ease;
+}
+
+body.dark-theme .options-icon {
+    filter: invert(1) brightness(1.5);
+}
+
+.options-button:hover .options-icon {
+    opacity: 1;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+
+.theme-toggle:hover {
+    background-color: rgba(60, 64, 67, 0.1);
+}
+
+body.dark-theme .theme-toggle:hover {
+    background-color: rgba(232, 234, 237, 0.1);
+}
+
+.theme-toggle img {
+    width: 20px;
+    height: 20px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, filter 0.3s ease;
+}
+
+body.dark-theme .theme-toggle img {
+    filter: invert(1) brightness(1.5);
+}
+
+.theme-toggle:hover img {
+    opacity: 1;
+}
+
+/* Hide appropriate icon based on theme */
+body:not(.dark-theme) .dark-icon,
+body.dark-theme .light-icon {
+    display: none;
+}
+
+/* Input Textarea */
+textarea#fast-translate-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dadce0; /* Lighter border */
+    border-radius: 8px; /* More rounded */
+    box-sizing: border-box;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit; /* Use body font */
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+body.dark-theme textarea#fast-translate-input {
+    background-color: #2d2e30;
+    color: #e8eaed;
+    border-color: #5f6368;
+}
+
+textarea#fast-translate-input:focus {
+    outline: none;
+    border-color: #8ab4f8; /* Google blue focus */
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2); /* Subtle focus shadow */
+}
+
+/* Output Area Container */
+.output-container {
+    position: relative;
+}
+
+/* Output Area Styling (Textarea) */
+#fast-translate-output {
+    width: 100%;
+    padding: 10px;
+    /* padding-right: 40px; */ /* Removed padding for button */
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-size: 14px;
+    min-height: 80px;
+    cursor: pointer; /* Add back cursor pointer */
+    resize: vertical; 
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, color 0.3s ease, outline 0.1s ease-out;
+}
+
+/* Style for visual feedback on copy */
+#fast-translate-output.copied-success {
+    outline: 2px solid #1e8e3e; /* Green outline */
+    outline-offset: -2px; /* Inside border */
+}
+
+body.dark-theme #fast-translate-output.copied-success {
+     outline-color: #81c995; /* Lighter green for dark theme */
+}
+
+#fast-translate-output.placeholder {
+     color: #80868b; /* Placeholder text color */
+}
+
+body.dark-theme #fast-translate-output.placeholder {
+     color: #9aa0a6;
+}
+
+body.dark-theme #fast-translate-output {
+    background-color: #2d2e30;
+    color: #e8eaed;
+    border-color: #5f6368;
+}
+
+#fast-translate-output:focus {
+    outline: none;
+    border-color: #8ab4f8;
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+/* Status message */
+.status {
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.status.success {
+    background-color: #e6f4ea;
+    color: #137333;
+}
+
+body.dark-theme .status.success {
+    background-color: #1e3a1e;
+    color: #81c995;
+}
+
+.status.error {
+    background-color: #fce8e6;
+    color: #c5221f;
+}
+
+body.dark-theme .status.error {
+    background-color: #3c1a1a;
+    color: #f28b82;
+}
+
+/* Button base styles */
+.button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.3s ease;
+    text-align: center;
+    width: 100%; /* Make buttons full width by default */
+}
+
+.button:disabled {
+     cursor: not-allowed;
+     opacity: 0.65;
+}
+
+.button:hover:not(:disabled) {
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.button:active:not(:disabled) {
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+}
+
+/* Primary Button Style (Translate) */
+.button.primary {
+    background-color: #1a73e8; /* Google Blue */
+    color: white;
+}
+
+.button.primary:hover:not(:disabled) {
+    background-color: #185abc;
+}
+
+/* Separator line */
+.separator {
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 15px 0;
+}
+
+body.dark-theme .separator {
+    border-color: #5f6368;
+}
+
+/* Language Selector */
+.language-selector {
+    margin-bottom: 1rem;
+}
+
+.language-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.language-selector select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #202124;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, color 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%235f6368'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 20px;
+    padding-right: 32px;
+}
+
+body.dark-theme .language-selector select {
+    background-color: #2d2e30;
+    color: #e8eaed;
+    border-color: #5f6368;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239aa0a6'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+}
+
+.language-selector select:hover {
+    border-color: #8ab4f8;
+}
+
+.language-selector select:focus {
+    outline: none;
+    border-color: #8ab4f8;
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+/* Main Content Area below header */
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* Consistent spacing like the main container */
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="sidebarTitle">HyperAssistant</title>
+    <link rel="stylesheet" href="sidebar.css">
+    </head>
+
+<body>
+
+
+    <div class="container">
+        <div class="header">
+            <div class="title-container">
+                <img src="icons/icon16.png" alt="HyperAssistant" class="title-icon">
+                <h2 data-i18n="sidebarTitle">HyperAssistant</h2>
+            </div>
+            <div class="header-buttons">
+                <button id="theme-toggle" class="theme-toggle" data-i18n-title="toggleThemeTooltip"
+                    title="Toggle theme">
+                    <img src="icons/light-mode-icon.svg" alt="Light Mode" class="light-icon">
+                    <img src="icons/dark-mode-icon.svg" alt="Dark Mode" class="dark-icon">
+                </button>
+                <button id="options-button" class="options-button" data-i18n-title="openSettingsTooltip"
+                    title="Open Settings">
+                    <img src="icons/settings-icon.svg" alt="Settings" class="options-icon">
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="language-selector">
+                <label for="target-language" data-i18n="targetLanguageLabel">Target Language</label>
+                <select id="target-language">
+                    <!-- Language options will be populated here -->
+                </select>
+            </div>
+            <textarea id="fast-translate-input" data-i18n-placeholder="inputPlaceholder"
+                placeholder="Enter text to translate..."></textarea>
+            <div class="output-container">
+                <textarea id="fast-translate-output" class="placeholder" readonly
+                    data-i18n-placeholder="outputPlaceholder"
+                    placeholder="Translation result will appear here..."></textarea>
+            </div>
+            <div id="fast-translate-status" class="status"></div>
+            <button id="fast-translate-send" class="button primary" data-i18n="translateButton">Translate</button>
+        </div>
+    </div>
+
+    <script src="sidebar.js" type="module"></script>
+</body>
+
+</html>

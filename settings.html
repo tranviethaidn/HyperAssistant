@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="settingsTitle">HyperAssistant Settings</title>
+    <link rel="stylesheet" href="settings.css">
+</head>
+
+<body>
+    <script src="settings.js" type="module"></script>
+
+    <div class="container">
+        <div class="header">
+            <div class="title-container">
+                <img src="icons/icon16.png" alt="Settings" class="title-icon">
+                <h1 data-i18n="settingsTitle">HyperAssistant Settings</h1>
+            </div>
+            <button id="theme-toggle" class="theme-toggle" data-i18n-title="toggleThemeTooltip" title="Toggle theme">
+                <img src="icons/light-mode-icon.svg" alt="Light Mode" class="light-icon">
+                <img src="icons/dark-mode-icon.svg" alt="Dark Mode" class="dark-icon">
+            </button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="general" data-i18n="homepageTab">Homepage</button>
+            <button class="tab-button" data-tab="settings" data-i18n="generalSettingsTab">General Settings</button>
+            <button class="tab-button" data-tab="api" data-i18n="apiSettingsTab">API Settings</button>
+        </div>
+
+        <div class="tab-content active" id="general-tab">
+            <div class="section">
+                <h2 data-i18n="aboutTitle">About HyperAssistant</h2>
+                <div class="about-content">
+                    <p data-i18n="aboutDesc1">HyperAssistant is a powerful Chrome extension designed to help you
+                        translate content across multiple languages with ease. Whether you're translating selected text
+                        on a webpage or inputting custom text, HyperAssistant delivers fast and accurate results.</p>
+                    <p data-i18n="aboutDesc2">Powered by Google's Gemini API from Google AI Studio, it offers advanced
+                        translation capabilities with customizable model options to suit your needs. With its high
+                        speed, precision, and flexibility — all completely free — HyperAssistant is the ideal tool for
+                        seamless communication in any language.</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 data-i18n="howToUseTitle">How to Use</h2>
+                <div class="how-to-use">
+                    <div class="feature-section">
+                        <h3 data-i18n="htuSetup">1. Basic Setup</h3>
+                        <div class="feature-item">
+                            <h4 data-i18n="htuPin">A. Pin the Extension</h4>
+                                <p><span data-i18n="htuPinDesc">Click the Chrome extensions icon...</span> <img
+                                    src="icons/icon16.png" alt="HyperAssistant" class="extension-icon"> ...</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4 data-i18n="htuApi">B. API Settings</h4>
+                            <p data-i18n="htuApiDesc">Get your personal API key from Google AI Studio:</p>
+                            <ul>
+                                <li><span data-i18n="htuApiVisit">Visit:</span> <a
+                                        href="https://makersuite.google.com/app/apikey" target="_blank">Google AI
+                                        Studio</a>.</li>
+                                <li data-i18n="htuApiCreate">Create new API key.</li>
+                                <li data-i18n="htuApiAdd">Add your API key to the input field.</li>
+                                <li data-i18n="htuApiSave">Then click the "Save Settings" button.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="feature-section">
+                        <h3 data-i18n="htuFeatures">2. Main Features</h3>
+                        <div class="feature-item">
+                            <h4 data-i18n="htuTextTranslate">A. Text Translate</h4>
+                            <p><span data-i18n="htuTextTranslateDesc">Highlight any text on a webpage...</span> <img
+                                    src="icons/icon-translate.svg" alt="Translate" class="inline-icon"> ...</p>
+                        </div>
+                        <div class="feature-item">
+                            <h4 data-i18n="htuFastTranslate">B. Fast Translate (Sidebar)</h4>
+                                <p><span data-i18n="htuFastTranslateDesc">Click on the HyperAssistant icon...</span> <img
+                                    src="icons/icon16.png" alt="HyperAssistant" class="extension-icon"> ...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="settings-tab">
+            <div class="section">
+                <h2 data-i18n="appearanceTitle">Appearance</h2>
+                <div class="form-group">
+                    <label for="ui-language-select" data-i18n="uiLanguageLabel">Interface Language:</label>
+                    <select id="ui-language-select">
+                        <option value="en">English</option>
+                        <option value="vi">Tiếng Việt</option>
+                    </select>
+                    <p class="help-text" data-i18n="uiLanguageHelp">Select the display language for the extension
+                        interface.</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 data-i18n="apiProviderTitle">API Provider</h2>
+                <div class="form-group">
+                    <label for="api-provider" data-i18n="apiProviderLabel">Choose API Provider:</label>
+                    <select id="api-provider">
+                        <option value="gemini">🟦 Google Gemini</option>
+                        <option value="groq">🟧 Groq</option>
+                    </select>
+                    <p class="help-text" data-i18n="apiProviderHelp">Select the AI provider for translations. Gemini is
+                        free while Groq offers faster inference.</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 data-i18n="textTranslateSettingsTitle">Text Translate Settings</h2>
+                <div class="form-group">
+                    <label for="default-target-language" data-i18n="defaultTargetLangLabel">Default Target
+                        Language:</label>
+                    <select id="default-target-language">
+                        <!-- Languages will be populated by JavaScript -->
+                    </select>
+                    <p class="help-text" data-i18n="defaultTargetLangHelp">This language will be used by default when
+                        translating selected text on webpages.</p>
+                </div>
+                <div class="form-group">
+                    <label for="emotion-style" data-i18n="emotionLabel">Emotion:</label>
+                    <select id="emotion-style">
+                        <option value="conversation" data-i18n="emotionConversation">💬 Conversation (Default)</option>
+                        <option value="serious" data-i18n="emotionSerious">😐 Serious</option>
+                        <option value="humorous" data-i18n="emotionHumorous">😂 Humorous</option>
+                        <option value="vulgar" data-i18n="emotionVulgar">🤐 Vulgar</option>
+                        <option value="furious" data-i18n="emotionFurious">😠 Furious</option>
+                        <option value="touching" data-i18n="emotionTouching">😢 Touching</option>
+                    </select>
+                    <p class="help-text" data-i18n="emotionHelp">Choose the emotional tone for translations (applies to
+                        Text Translate only).</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="api-tab">
+            <!-- Gemini API Settings -->
+            <div id="gemini-settings">
+                <div class="section">
+                    <h2 data-i18n="apiConfigTitle">API Configuration</h2>
+                    <div class="form-group">
+                        <label for="api-key" data-i18n="apiKeyLabel">Google AI API Key:</label>
+                        <input type="password" id="api-key" data-i18n-placeholder="apiKeyPlaceholder"
+                            placeholder="Enter your API key">
+                        <p class="help-text"><span data-i18n="apiKeyHelp">Get your API key from</span> <a
+                                href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 data-i18n="modelSettingsTitle">Model Settings</h2>
+
+                    <div class="form-group">
+                        <label data-i18n="geminiModeLabel">Mode:</label>
+                        <div class="radio-group" id="gemini-mode-group">
+                            <label class="radio-option">
+                                <input type="radio" name="gemini-mode" id="gemini-mode-api" value="api" checked>
+                                <span data-i18n="geminiModeApi">API</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="gemini-mode" id="gemini-mode-live" value="live">
+                                <span data-i18n="geminiModeLive">Live API</span>
+                            </label>
+                        </div>
+                        <p class="help-text" data-i18n="geminiModeHelp">Choose how Gemini is used for model testing.</p>
+                    </div>
+
+                    <div id="gemini-api-model-settings">
+                    <div class="form-group">
+                        <label for="model-name" data-i18n="modelLabel">Model:</label>
+                        <select id="model-name">
+                            <option value="gemini-2.5-flash-lite" data-i18n="modelGemini25FlashLite">Gemini 2.5 Flash
+                                Lite
+                                (Default)</option>
+                            <option value="gemini-2.5-flash" data-i18n="modelGemini25Flash">Gemini 2.5 Flash</option>
+                            <option value="gemma-3-27b-it">Gemma 3 27B IT</option>
+                            <option value="custom" data-i18n="modelCustomOption">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="custom-model-group" style="display: none;">
+                        <label for="custom-model" data-i18n="customModelLabel">Custom Model (Optional):</label>
+                        <input type="text" id="custom-model" data-i18n-placeholder="customModelPlaceholder"
+                            placeholder="Enter custom model name">
+                        <p class="help-text" data-i18n="customModelHelp">If provided, this model will be used instead of
+                            the
+                            selected model above</p>
+                        <p class="help-text warning" data-i18n="customModelWarning">SOME ADVANCED MODELS WILL RESULT IN
+                            SLOWER TRANSLATION SPEEDS</p>
+                        <p class="help-text"><span data-i18n="customModelDocs">For more information about available
+                                models,
+                                visit</span> <a href="https://ai.google.dev/gemini-api/docs/models"
+                                target="_blank">Gemini
+                                API Documentation</a></p>
+                    </div>
+
+                    <div class="form-group">
+                        <button id="test-model" type="button" class="button secondary" data-i18n="testModelButton">Test
+                            Model</button>
+                        <p id="model-test-result" class="status" style="margin-top: 12px;"></p>
+                    </div>
+                    </div>
+
+                    <div id="gemini-live-model-settings" style="display: none;">
+                        <div class="form-group">
+                            <label for="live-model-id" data-i18n="liveModelIdLabel">Live Model ID:</label>
+                            <input type="text" id="live-model-id" data-i18n-placeholder="liveModelIdPlaceholder"
+                                placeholder="e.g. gemini-3.1-flash-live-preview">
+                            <p class="help-text" data-i18n="liveModelIdHelp">Enter the Live API model ID (without the models/ prefix).</p>
+                        </div>
+
+                        <div class="form-group">
+                            <button id="test-live-model" type="button" class="button secondary" data-i18n="testLiveApiButton">Test Live API</button>
+                            <p id="live-model-test-result" class="status" style="margin-top: 12px;"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 data-i18n="genParamsTitle">Generation Parameters</h2>
+                    <div class="form-group">
+                        <label for="temperature" data-i18n="tempLabel">Temperature:</label>
+                        <input type="number" id="temperature" min="0" max="1" step="0.1"
+                            data-i18n-placeholder="tempPlaceholder" placeholder="0.0 - 1.0">
+                        <p class="help-text" data-i18n="tempHelp">Controls randomness (0.0 = deterministic, 1.0 =
+                            creative)
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label for="top-k" data-i18n="topkLabel">Top K:</label>
+                        <input type="number" id="top-k" min="1" max="40" data-i18n-placeholder="topkPlaceholder"
+                            placeholder="1 - 40">
+                        <p class="help-text" data-i18n="topkHelp">Number of highest probability tokens to consider</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="top-p" data-i18n="toppLabel">Top P:</label>
+                        <input type="number" id="top-p" min="0" max="1" step="0.1"
+                            data-i18n-placeholder="toppPlaceholder" placeholder="0.0 - 1.0">
+                        <p class="help-text" data-i18n="toppHelp">Cumulative probability cutoff for token selection</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-output-tokens" data-i18n="maxTokensLabel">Max Output Tokens:</label>
+                        <input type="number" id="max-output-tokens" min="1" max="8192"
+                            data-i18n-placeholder="maxTokensPlaceholder" placeholder="1 - 8192">
+                        <p class="help-text" data-i18n="maxTokensHelp">Maximum number of tokens to generate</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Groq API Settings -->
+            <div id="groq-settings" style="display: none;">
+                <div class="section">
+                    <h2 data-i18n="groqApiConfigTitle">Groq API Configuration</h2>
+                    <div class="form-group">
+                        <label for="groq-api-key" data-i18n="groqApiKeyLabel">Groq API Key:</label>
+                        <input type="password" id="groq-api-key" data-i18n-placeholder="groqApiKeyPlaceholder"
+                            placeholder="Enter your Groq API key">
+                        <p class="help-text"><span data-i18n="groqApiKeyHelp">Get your API key from</span> <a
+                                href="https://console.groq.com/keys" target="_blank">Groq Console</a></p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 data-i18n="groqModelSettingsTitle">Model Settings</h2>
+                    <div class="form-group">
+                        <label for="groq-model-name" data-i18n="groqModelLabel">Model:</label>
+                        <select id="groq-model-name">
+                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Default)</option>
+                            <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Fast)</option>
+                            <option value="meta-llama/llama-guard-3-8b">Llama Guard 3 8B</option>
+                        </select>
+                        <p class="help-text" data-i18n="groqModelHelp">Choose the Groq model for translations. Llama 3.3
+                            70B is recommended for best quality.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <button id="test-groq-model" type="button" class="button secondary" data-i18n="testModelButton">Test
+                            Model</button>
+                        <p id="groq-model-test-result" class="status" style="margin-top: 12px;"></p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2 data-i18n="groqGenParamsTitle">Generation Parameters</h2>
+                    <div class="form-group">
+                        <label for="groq-temperature" data-i18n="tempLabel">Temperature:</label>
+                        <input type="number" id="groq-temperature" min="0" max="2" step="0.1"
+                            data-i18n-placeholder="tempPlaceholder" placeholder="0.0 - 2.0">
+                        <p class="help-text" data-i18n="groqTempHelp">Controls randomness (0.0 = deterministic, 2.0 =
+                            creative)</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="groq-max-tokens" data-i18n="maxTokensLabel">Max Output Tokens:</label>
+                        <input type="number" id="groq-max-tokens" min="1" max="8192"
+                            data-i18n-placeholder="maxTokensPlaceholder" placeholder="1 - 8192">
+                        <p class="help-text" data-i18n="maxTokensHelp">Maximum number of tokens to generate</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div id="status" class="status"></div>
+            <div class="button-group">
+                <button id="save" class="button primary" data-i18n="saveButton">Save Settings</button>
+                <button id="reset" class="button secondary" data-i18n="resetButton">Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

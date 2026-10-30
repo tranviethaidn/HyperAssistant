@@ -1,0 +1,354 @@
+/* style.css - Phiên bản hoàn chỉnh v14 (Highlight Icon, loại bỏ T cố định) */
+
+/* --- Reset cơ bản (Tùy chọn) --- */
+.gemini-translator-extension-component {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif;
+    line-height: 1.4;
+}
+
+.gemini-translator-extension-component *,
+.gemini-translator-extension-component *::before,
+.gemini-translator-extension-component *::after {
+    box-sizing: inherit;
+}
+
+
+/* === Dịch bôi đen (Icon Highlight & Hover Box) === */
+
+/* Icon dịch khi bôi đen (Thay thế nút G) */
+#hypertranslator-highlight-icon {
+    /* Position được đặt bởi JS */
+    z-index: 2147483646;
+    /* z-index cao để nổi lên */
+    width: 32px;
+    /* Kích thước icon */
+    height: 32px;
+    background-color: white;
+    /* Nền trắng */
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    /* Viền mờ */
+    border-radius: 50%;
+    /* Hình tròn */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    /* Đổ bóng nhẹ */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    /* Padding nhỏ bên trong */
+    transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+    /* *** QUAN TRỌNG: Đường dẫn đến file SVG *** */
+    /* Chrome sẽ tự thay thế __MSG_@@extension_id__ */
+    background-image: url('chrome-extension://__MSG_@@extension_id__/icons/icon-hyperassistant.svg');
+    background-size: 20px 20px;
+    /* Kích thước SVG bên trong */
+    background-repeat: no-repeat;
+    background-position: center center;
+
+    /* Allow absolute-positioned mini actions to render outside */
+    overflow: visible;
+}
+
+#hypertranslator-highlight-icon:hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Mini actions (Translate + Summarize): orbit around the main icon */
+#hypertranslator-highlight-icon .ht-mini-actions {
+    /* Anchor at the center of the main icon */
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease-out;
+}
+
+/* Show when hovering OR when JS pins it open */
+#hypertranslator-highlight-icon:hover .ht-mini-actions,
+#hypertranslator-highlight-icon.ht-mini-open .ht-mini-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#hypertranslator-highlight-icon .ht-mini-btn {
+    all: unset;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: white;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 14px 14px;
+
+    position: absolute;
+    left: -11px; /* center the 22x22 button on the anchor */
+    top: -11px;
+
+    /* Orbit path parameters */
+    --orbit-radius: 34px;
+    --start-angle: -90deg; /* 12h */
+    --target-angle: 0deg;
+
+    opacity: 0;
+    pointer-events: none;
+    transform: rotate(var(--start-angle)) translate(var(--orbit-radius)) rotate(calc(-1 * var(--start-angle))) scale(0.92);
+    will-change: transform, opacity;
+    transition:
+        transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1),
+        opacity 140ms ease-out,
+        box-shadow 120ms ease-out;
+    transition-delay: 0ms;
+}
+
+/* Animate out along the orbit path, clockwise (from -90deg to target) */
+#hypertranslator-highlight-icon:hover .ht-mini-btn,
+#hypertranslator-highlight-icon.ht-mini-open .ht-mini-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: rotate(var(--target-angle)) translate(var(--orbit-radius)) rotate(calc(-1 * var(--target-angle))) scale(1);
+}
+
+#hypertranslator-highlight-icon .ht-mini-btn:hover {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Final positions: 1h and 3h, shown sequentially */
+#hypertranslator-highlight-icon .ht-mini-summarize {
+    --target-angle: -60deg; /* 1h */
+}
+
+#hypertranslator-highlight-icon .ht-mini-translate {
+    --target-angle: 0deg; /* 3h */
+}
+
+/* Stagger only when opening (avoid laggy close) */
+#hypertranslator-highlight-icon:hover .ht-mini-summarize,
+#hypertranslator-highlight-icon.ht-mini-open .ht-mini-summarize {
+    transition-delay: 0ms;
+}
+
+#hypertranslator-highlight-icon:hover .ht-mini-translate,
+#hypertranslator-highlight-icon.ht-mini-open .ht-mini-translate {
+    transition-delay: 110ms;
+}
+
+#hypertranslator-highlight-icon .ht-mini-translate {
+    background-image: url('chrome-extension://__MSG_@@extension_id__/icons/icon-translate.svg');
+}
+
+#hypertranslator-highlight-icon .ht-mini-summarize {
+    background-image: url('chrome-extension://__MSG_@@extension_id__/icons/icon-summarize.svg');
+}
+
+/* Box kết quả dịch của icon highlight */
+#text-translate-hover-box,
+#image-translate-hover-box {
+    position: absolute;
+    z-index: 2147483645;
+    /* Dưới icon một chút */
+    backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    background-color: rgba(17, 25, 40, 0.6);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.125);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    max-width: 400px;
+    font-size: 14px;
+    color: #f5f5f5;
+    line-height: 1.5;
+    text-align: left;
+    overflow-wrap: break-word;
+    font-family: "Inter", sans-serif;
+    white-space: pre-wrap;
+    word-break: break-word;
+    /* Add flex properties to center the loader */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 50px;
+    /* Ensure minimum height for loader */
+}
+
+#text-translate-hover-box p,
+#image-translate-hover-box p {
+    margin: 0;
+    color: #f5f5f5;
+    font-family: "Inter", sans-serif;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Remove style for strong as it's replaced by loader */
+/* #text-translate-hover-box strong { ... } */
+
+/* --- Loader CSS --- */
+/* Adapted from Uiverse.io by satyamchaudharydev */
+.loading {
+    --speed-of-animation: 1.8s;
+    /* Slowed down */
+    --gap: 2px;
+    /* Reduced */
+    --color: #f5f5f5;
+    /* Single color */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 25px;
+    /* Reduced size */
+    gap: var(--gap);
+    height: 25px;
+    /* Reduced size */
+}
+
+.loading span {
+    width: 1px;
+    /* Reduced */
+    height: 12px;
+    /* Reduced */
+    background: var(--color);
+    animation: scale var(--speed-of-animation) ease-in-out infinite;
+}
+
+.loading span:nth-child(2) {
+    background: var(--color);
+    animation-delay: -1.6s;
+    /* Adjusted delays */
+}
+
+.loading span:nth-child(3) {
+    background: var(--color);
+    animation-delay: -1.4s;
+}
+
+.loading span:nth-child(4) {
+    background: var(--color);
+    animation-delay: -1.2s;
+}
+
+.loading span:nth-child(5) {
+    background: var(--color);
+    animation-delay: -1.0s;
+}
+
+@keyframes scale {
+
+    0%,
+    40%,
+    100% {
+        transform: scaleY(0.05);
+    }
+
+    20% {
+        transform: scaleY(1);
+    }
+}
+
+/* === LOẠI BỎ HOÀN TOÀN STYLE CHO NÚT G CŨ === */
+/* #gemini-translate-button { ... } */
+
+/* === LOẠI BỎ HOÀN TOÀN STYLE CHO NÚT T CỐ ĐỊNH VÀ BOX CỦA NÓ === */
+/* #gemini-fixed-translate-input-button { ... } */
+/* #gemini-fixed-translate-input-box { ... } */
+/* #gemini-fixed-translate-input-box .close-input-box-btn { ... } */
+/* #gemini-fixed-translate-input-box textarea#translate-input-area { ... } */
+/* #gemini-fixed-translate-input-box #translate-output-area { ... } */
+/* #gemini-fixed-translate-input-box .copy-output-btn { ... } */
+/* Đã bị loại bỏ */
+/* #gemini-fixed-translate-input-box .controls { ... } */
+/* #gemini-fixed-translate-input-box .status { ... } */
+/* #gemini-fixed-translate-input-box button.translate-submit { ... } */
+/* #gemini-fixed-translate-input-box.visible { ... } */
+
+/* === LOẠI BỎ CLASS ẨN KHÔNG CẦN THIẾT === */
+/* .gemini-translator-hidden { ... } */
+
+/* === Full Page Translator Status Bar === */
+#hypertranslator-page-status-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 2147483647;
+    background-color: rgba(17, 25, 40, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #f5f5f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.3s ease-in-out;
+}
+
+#hypertranslator-page-status-bar.hidden {
+    transform: translateY(-100%);
+}
+
+#hypertranslator-page-status-bar .status-text {
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#hypertranslator-page-status-bar .status-actions {
+    display: flex;
+    gap: 10px;
+}
+
+#hypertranslator-page-status-bar button {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+#hypertranslator-page-status-bar button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+#hypertranslator-page-status-bar button.primary {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+#hypertranslator-page-status-bar button.primary:hover {
+    background-color: #2563eb;
+}
+
+/* Spinner for status bar */
+.ht-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: ht-spin 1s ease-in-out infinite;
+}
+
+@keyframes ht-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
