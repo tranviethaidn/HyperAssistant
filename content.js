@@ -840,97 +840,59 @@ if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
 
 // === Logic Dịch Toàn Trang (In-Place Translation Engine) ===
 
-// Block containers: elements that structure content into distinct sections
-const BLOCK_CONTAINER_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, ul, ol, blockquote, figcaption, dt, dd, td, th, table, article, section, header, footer, aside, nav, main, div, form, fieldset, details, summary';
-
-// All candidates that could be leaf text elements
-const ALL_CANDIDATE_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th, button, a, label, summary, span, div, article, section, header, footer, aside, nav, time, cite, mark';
-
-// Ignored containers: elements that should never be translated or touched
 const IGNORED_CONTAINERS_SELECTOR = '#hypertranslator-page-status-bar, #text-translate-hover-box, #image-translate-hover-box, noscript, script, style, code, pre, textarea, input, select, [contenteditable="true"], [translate="no"], .notranslate';
 
-// 1. Wrap naked text nodes that sit directly beside block children so they aren't missed
-function wrapOrphanedTextNodes(root = document.body) {
-    const walker = document.createTreeWalker(
-        root,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode(node) {
-                if (!node.nodeValue || node.nodeValue.trim().length < 2) return NodeFilter.FILTER_REJECT;
-                if (!/[\p{L}]/u.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
-                const parent = node.parentElement;
-                if (!parent) return NodeFilter.FILTER_REJECT;
-                if (parent.closest(IGNORED_CONTAINERS_SELECTOR)) return NodeFilter.FILTER_REJECT;
-                
-                // If parent has child block elements, this naked text node needs a wrapper element
-                const hasBlockChild = parent.querySelector(BLOCK_CONTAINER_SELECTOR);
-                if (hasBlockChild) {
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-                return NodeFilter.FILTER_REJECT;
-            }
-        }
-    );
-
-    const orphanNodes = [];
-    let curr;
-    while ((curr = walker.nextNode())) {
-        orphanNodes.push(curr);
-    }
-
-    for (const textNode of orphanNodes) {
-        if (!textNode.parentNode) continue;
-        const span = document.createElement('span');
-        span.className = 'ht-orphan-wrap';
-        span.dataset.htOrphan = 'true';
-        textNode.parentNode.insertBefore(span, textNode);
-        span.appendChild(textNode);
-    }
-}
-
-// 2. Collect 100% of visible leaf text blocks across the entire page
+// Fast, non-blocking DOM element collection (Under 15ms, zero DOM mutations)
 function collectPageElements() {
-    wrapOrphanedTextNodes();
-
-    const candidates = document.querySelectorAll(ALL_CANDIDATE_SELECTOR);
     const elementsToTranslate = [];
-    const seenDescendants = new Set();
-    const selectedSet = new Set();
+    const collectedSet = new Set();
+    const collectedDescendants = new Set();
 
-    for (const el of candidates) {
-        if (seenDescendants.has(el)) continue;
+    // Pass 1: Semantic Text Blocks
+    const semanticElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, figcaption, dt, dd, td, th, button, summary');
+    for (const el of semanticElements) {
+        if (!isNodeVisible(el)) continue;
+        if (el.closest(IGNORED_CONTAINERS_SELECTOR)) continue;
+        if (collectedDescendants.has(el)) continue;
+
+        const text = el.innerText?.trim() || '';
+        if (text.length < 2 || !/[\p{L}]/u.test(text)) continue;
+
+        // Leaf block check: if a block contains another semantic block (e.g. <li> with <p>), collect only leaf
+        if (el.querySelector('p, h1, h2, h3, h4, h5, h6, li, blockquote, dt, dd, td, th')) continue;
+
+        elementsToTranslate.push(el);
+        collectedSet.add(el);
+        for (const d of el.querySelectorAll('*')) {
+            collectedDescendants.add(d);
+        }
+    }
+
+    // Pass 2: Standalone links and standalone text tags (not already inside collected blocks)
+    const extraCandidates = document.querySelectorAll('a, span, div');
+    for (const el of extraCandidates) {
+        if (collectedSet.has(el) || collectedDescendants.has(el)) continue;
         if (!isNodeVisible(el)) continue;
         if (el.closest(IGNORED_CONTAINERS_SELECTOR)) continue;
 
         const text = el.innerText?.trim() || '';
-        // Must contain at least 2 characters and at least one linguistic letter (skip pure numbers/symbols)
         if (text.length < 2 || !/[\p{L}]/u.test(text)) continue;
 
-        // Leaf Rule 1: Must NOT contain any child structural block container
-        // (Inline tags like <a>, <b>, <i>, <code>, <span>, <time> are NOT block containers and are preserved)
-        if (el.querySelector(BLOCK_CONTAINER_SELECTOR)) continue;
-
-        // Leaf Rule 2: Generic containers (div, nav, section...) with multiple links are menus/lists;
-        // let the individual links be collected instead of merging them
-        const isGenericContainer = /^(DIV|NAV|SECTION|HEADER|FOOTER|ASIDE|MAIN)$/i.test(el.tagName);
-        if (isGenericContainer && el.querySelectorAll('a').length > 1) continue;
-
-        // Leaf Rule 3: Must not have an ancestor already selected
-        let ancestorSelected = false;
-        let p = el.parentElement;
-        while (p && p !== document.body) {
-            if (selectedSet.has(p)) { ancestorSelected = true; break; }
-            p = p.parentElement;
-        }
-        if (ancestorSelected) continue;
-
-        elementsToTranslate.push(el);
-        selectedSet.add(el);
-
-        // Mark all descendants so none are collected separately
-        const descendants = el.querySelectorAll('*');
-        for (const d of descendants) {
-            seenDescendants.add(d);
+        if (el.tagName === 'A') {
+            elementsToTranslate.push(el);
+            collectedSet.add(el);
+            for (const d of el.querySelectorAll('*')) collectedDescendants.add(d);
+        } else if (el.tagName === 'SPAN') {
+            if (el.children.length === 0) {
+                elementsToTranslate.push(el);
+                collectedSet.add(el);
+            }
+        } else if (el.tagName === 'DIV') {
+            if (!el.querySelector('p, h1, h2, h3, h4, h5, h6, li, ul, ol, blockquote, a, div')) {
+                elementsToTranslate.push(el);
+                collectedSet.add(el);
+                for (const d of el.querySelectorAll('*')) collectedDescendants.add(d);
+            }
         }
     }
 
@@ -963,7 +925,7 @@ function createStatusBar() {
     statusBar.innerHTML = `
         <div class="status-left">
             <div class="ht-spinner"></div>
-            <span id="ht-status-message">Đang dịch trang... (0%)</span>
+            <span id="ht-status-message">Đang dịch toàn bộ trang web...</span>
         </div>
         <div class="status-center">
             <label for="ht-page-target-lang">Ngôn ngữ:</label>
@@ -1008,69 +970,84 @@ function createStatusBar() {
     });
 }
 
-function updateStatusBar(progress, total) {
+function setStatusBarLoading(text = "Đang dịch toàn bộ trang web...") {
     const msg = document.getElementById('ht-status-message');
-    if (msg) {
-        const percent = total > 0 ? Math.round((progress / total) * 100) : 0;
-        msg.textContent = `Đang dịch trang... ${progress}/${total} (${percent}%)`;
-        if (progress >= total && total > 0) {
-            msg.textContent = `Dịch hoàn tất (${total} mục)`;
-            const spinner = statusBar?.querySelector('.ht-spinner');
-            if (spinner) spinner.style.display = 'none';
+    if (msg) msg.textContent = text;
+    const spinner = statusBar?.querySelector('.ht-spinner');
+    if (spinner) spinner.style.display = 'block';
+}
+
+function setStatusBarCompleted(text = "✓ Đã dịch xong trang web") {
+    const msg = document.getElementById('ht-status-message');
+    if (msg) msg.textContent = text;
+    const spinner = statusBar?.querySelector('.ht-spinner');
+    if (spinner) spinner.style.display = 'none';
+}
+
+function parseFullTranslationJSON(rawText) {
+    let clean = rawText.trim();
+    if (clean.startsWith('```json')) clean = clean.slice(7);
+    else if (clean.startsWith('```')) clean = clean.slice(3);
+    if (clean.endsWith('```')) clean = clean.slice(0, -3);
+    clean = clean.trim();
+
+    const startIdx = clean.indexOf('{');
+    const endIdx = clean.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+        clean = clean.substring(startIdx, endIdx + 1);
+    }
+
+    try {
+        return JSON.parse(clean);
+    } catch (_) {}
+
+    // Fallback regex parser for resilient extraction
+    const result = {};
+    const regex = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g;
+    let match;
+    while ((match = regex.exec(clean)) !== null) {
+        const id = match[1];
+        let val = match[2];
+        try {
+            val = JSON.parse(`"${val}"`);
+        } catch (_) {
+            val = val.replace(/\\"/g, '"').replace(/\\n/g, '\n');
         }
+        result[id] = val;
     }
+    return result;
 }
 
-// Global DOM batch queue to eliminate layout thrashing & achieve 60 FPS
-let pendingDomUpdates = [];
-let rafId = null;
+function applyAllTranslationsAtOnce(results) {
+    if (!pageTranslationActive || !results) return;
 
-function queueDomUpdate(id, text) {
-    pendingDomUpdates.push({ id, text });
-    if (!rafId) {
-        rafId = requestAnimationFrame(flushDomUpdates);
-    }
-}
-
-function flushDomUpdates() {
-    rafId = null;
-    if (!pageTranslationActive) {
-        pendingDomUpdates = [];
-        return;
-    }
-
-    const updatesToApply = pendingDomUpdates.splice(0, pendingDomUpdates.length);
-    for (const { id, text } of updatesToApply) {
+    for (const [id, translatedContent] of Object.entries(results)) {
         const record = pageBlockMap.get(id);
-        if (!record || !text) continue;
+        if (!record || !translatedContent) continue;
         const el = record.element;
         if (!el || !document.body.contains(el)) continue;
 
         if (record.hasChildTags) {
-            el.innerHTML = text;
+            el.innerHTML = translatedContent;
         } else {
-            el.textContent = text;
+            el.textContent = translatedContent;
         }
-        pageTranslatedCount++;
     }
 
-    updateStatusBar(pageTranslatedCount, pageTotalBlocks);
+    setStatusBarCompleted();
 }
 
 async function scanAndTranslateInPlace() {
     const elements = collectPageElements();
     pageTotalBlocks = elements.length;
-    pageTranslatedCount = 0;
-    updateStatusBar(0, pageTotalBlocks);
+    setStatusBarLoading("Đang dịch toàn bộ trang web...");
 
     if (pageTotalBlocks === 0) {
-        updateStatusBar(0, 0);
+        setStatusBarCompleted("Không tìm thấy văn bản cần dịch");
         return;
     }
 
-    // High-Capacity Batching: 250 items per batch
-    // Entire webpage (100-250 blocks) runs in EXACTLY 1 REQUEST!
-    // Takes full advantage of Gemini 3.5 Flash Lite 1M token context & 65k output limit
+    // High capacity batch (250 items): 1 Single Request for 99% of pages
     const BATCH_SIZE = 250;
     const allBatches = [];
 
@@ -1081,7 +1058,6 @@ async function scanAndTranslateInPlace() {
             const id = String(++blockIdCounter);
             el.dataset.htId = id;
 
-            // Preserve inline tags (<a>, <b>, <i>, <code>, <span>)
             const hasChildTags = el.children.length > 0;
             const contentToSend = hasChildTags ? el.innerHTML.trim() : el.textContent.trim();
 
@@ -1108,6 +1084,7 @@ function translateBatchInPlace(batchPayload) {
 
         if (!isExtensionValid()) {
             console.warn("[HyperAssistant] Extension context disconnected.");
+            setStatusBarCompleted("Lỗi: Extension đã được tải lại. Vui lòng F5 trang.");
             resolve();
             return;
         }
@@ -1122,12 +1099,12 @@ function translateBatchInPlace(batchPayload) {
             });
         } catch (e) {
             console.warn("[HyperAssistant] Failed to connect batch port:", e);
+            setStatusBarCompleted("Lỗi kết nối tới extension");
             resolve();
             return;
         }
 
         let buffer = "";
-        const appliedKeys = new Set();
         let timeoutTimer = null;
 
         function cleanup() {
@@ -1138,75 +1115,39 @@ function translateBatchInPlace(batchPayload) {
         // Safety timeout of 60 seconds per batch for large pages
         timeoutTimer = setTimeout(() => {
             cleanup();
-            flushDomUpdates();
+            if (buffer.trim()) {
+                const results = parseFullTranslationJSON(buffer);
+                applyAllTranslationsAtOnce(results);
+            } else {
+                setStatusBarCompleted("Dịch thất bại (Timeout)");
+            }
             resolve();
         }, 60000);
 
-        function processStreamBuffer() {
-            let cleaned = buffer.trim();
-            if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
-            else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
-
-            const regex = /"(\d+)":\s*"((?:[^"\\]|\\.)*)"/g;
-            let match;
-            while ((match = regex.exec(cleaned)) !== null) {
-                const id = match[1];
-                if (!appliedKeys.has(id)) {
-                    appliedKeys.add(id);
-                    let text = match[2];
-                    try {
-                        text = JSON.parse(`"${text}"`);
-                    } catch (_) {
-                        text = text.replace(/\\"/g, '"').replace(/\\n/g, '\n');
-                    }
-                    queueDomUpdate(id, text);
-                }
-            }
-        }
-
-        function finalizeParse() {
-            processStreamBuffer();
-            // Fallback: parse complete JSON if any trailing key was missed by regex
-            try {
-                let finalClean = buffer.trim();
-                if (finalClean.startsWith('```json')) finalClean = finalClean.slice(7);
-                else if (finalClean.startsWith('```')) finalClean = finalClean.slice(3);
-                if (finalClean.endsWith('```')) finalClean = finalClean.slice(0, -3);
-
-                const jsonEnd = finalClean.lastIndexOf('}');
-                if (jsonEnd !== -1) finalClean = finalClean.substring(0, jsonEnd + 1);
-
-                const fullObj = JSON.parse(finalClean);
-                for (const [id, text] of Object.entries(fullObj)) {
-                    if (!appliedKeys.has(id)) {
-                        appliedKeys.add(id);
-                        queueDomUpdate(id, text);
-                    }
-                }
-            } catch (_) {}
-
-            flushDomUpdates();
-        }
-
         port.onMessage.addListener((msg) => {
             if (msg.action === "chunk") {
+                // Accumulate raw text in memory without touching the DOM (Zero CPU lag)
                 buffer += msg.text;
-                processStreamBuffer();
             } else if (msg.action === "done") {
-                finalizeParse();
                 cleanup();
+                // Apply all translations at once in a single clean pass
+                const results = parseFullTranslationJSON(buffer);
+                applyAllTranslationsAtOnce(results);
                 resolve();
             } else if (msg.action === "error") {
                 console.error("[HyperAssistant] Batch translation error:", msg.error);
                 cleanup();
-                flushDomUpdates();
+                setStatusBarCompleted(`Lỗi: ${msg.error || "Không thể dịch"}`);
                 resolve();
             }
         });
 
         port.onDisconnect.addListener(() => {
             cleanup();
-            flushDomUpdates();
+            if (buffer.trim() && pageTranslationActive) {
+                const results = parseFullTranslationJSON(buffer);
+                applyAllTranslationsAtOnce(results);
+            }
             resolve();
         });
     });
@@ -1214,12 +1155,6 @@ function translateBatchInPlace(batchPayload) {
 
 function restorePage() {
     pageTranslationActive = false;
-
-    if (rafId) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-    }
-    pendingDomUpdates = [];
 
     pageBlockMap.forEach((record) => {
         const el = record.element;
@@ -1229,16 +1164,6 @@ function restorePage() {
     });
 
     pageBlockMap.clear();
-
-    // Clean up wrapped orphan text nodes
-    document.querySelectorAll('.ht-orphan-wrap').forEach(span => {
-        const parent = span.parentNode;
-        if (!parent) return;
-        while (span.firstChild) {
-            parent.insertBefore(span.firstChild, span);
-        }
-        span.remove();
-    });
 
     if (statusBar) {
         statusBar.remove();

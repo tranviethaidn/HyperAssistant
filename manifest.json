@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HyperAssistant - Fast & accurate AI language assistant",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Translate text and documents instantly with powerful AI. Supports many languages. Fast, smart, and perfect for all your translation needs.",
   "permissions": [
     "storage",        
